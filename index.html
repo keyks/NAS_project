@@ -1,0 +1,2245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NAS 文件管理系统</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: '微软雅黑', sans-serif; }
+        body { background: #f5f7fa; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header { display: flex; flex-direction: column; gap: 15px; margin-bottom: 30px; }
+        .title { font-size: 24px; color: #2c3e50; }
+        .storage-info { display: flex; flex-wrap: wrap; gap: 20px; color: #34495e; }
+        .storage-item { display: flex; align-items: center; gap: 5px; }
+        .storage-bar { width: 150px; height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden; }
+        .storage-fill { height: 100%; background: #3498db; transition: width 0.3s ease; }
+        .search-bar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; align-items: center; }
+        .search-input { flex: 1; min-width: 200px; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        .date-filter { padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        .upload-btn { padding: 10px 20px; background: #2ecc71; color: white; border: none; border-radius: 4px; cursor: pointer; transition: background 0.2s; }
+        .upload-btn:hover { background: #27ae60; }
+        .sort-group { display: flex; gap: 8px; align-items: center; }
+        .sort-btn { padding: 8px 12px; background: #fff; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; transition: all 0.2s; font-size: 12px; }
+        .sort-btn.active { background: #3498db; color: #fff; border-color: #3498db; }
+        #file-upload { display: none; }
+        .category-tabs { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+        .tab-btn { padding: 8px 16px; background: white; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; transition: all 0.2s; }
+        .tab-btn.active { background: #3498db; color: white; border-color: #3498db; }
+        .file-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }
+        .file-card { background: white; border-radius: 8px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: transform 0.2s, box-shadow 0.2s; }
+        .file-card:hover { transform: translateY(-5px); box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        .file-icon { font-size: 90px; text-align: center; margin-bottom: 10px; color: #3498db; }
+        .file-name { font-size: 14px; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .file-meta { font-size: 12px; color: #7f8c8d; margin-bottom: 10px; }
+        .file-actions { display: flex; justify-content: space-around; }
+        .action-btn { padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; transition: opacity 0.2s; }
+        .action-btn:hover { opacity: 0.9; transform: scale(1.05); }
+        .view-btn { background: #3498db; color: white; }
+        .rename-btn { background: #f39c12; color: white; }
+        .delete-btn { background: #e74c3c; color: white; }
+        
+        /* 模态框样式优化 */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s ease; }
+        .modal.show { opacity: 1; }
+        .modal-content { 
+            background: white; 
+            border-radius: 8px; 
+            width: 90%; 
+            max-width: 900px; 
+            max-height: 85vh; 
+            overflow: hidden;
+            transform: translateY(-20px);
+            transition: transform 0.3s ease;
+            box-shadow: 0 5px 30px rgba(0,0,0,0.2);
+        }
+        .modal.show .modal-content { transform: translateY(0); }
+        .modal-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            padding: 16px 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .modal-title { font-size: 18px; color: #2c3e50; }
+        .close-modal { 
+            font-size: 24px; 
+            cursor: pointer; 
+            color: #7f8c8d; 
+            transition: color 0.2s;
+            padding: 0 10px;
+        }
+        .close-modal:hover { color: #e74c3c; }
+        .preview-content { 
+            width: 100%; 
+            height: calc(85vh - 60px); 
+            overflow: auto; 
+            padding: 20px;
+        }
+        .rename-form { 
+            display: flex; 
+            gap: 10px; 
+            align-items: center; 
+            padding: 20px;
+        }
+        .rename-input { 
+            flex: 1; 
+            padding: 8px; 
+            border: 1px solid #ddd; 
+            border-radius: 4px; 
+        }
+        .submit-rename { 
+            padding: 8px 16px; 
+            background: #2ecc71; 
+            color: white; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            transition: background 0.2s;
+        }
+        .submit-rename:hover { background: #27ae60; }
+        
+        /* 加载中样式 */
+        .loading { 
+            display: none; 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: rgba(0,0,0,0.3); 
+            z-index: 2000; 
+            align-items: center; 
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .loading.show { opacity: 1; }
+        .loading-spinner { 
+            width: 50px; 
+            height: 50px; 
+            border: 5px solid #f3f3f3; 
+            border-top: 5px solid #3498db; 
+            border-radius: 50%; 
+            animation: spin 1s linear infinite; 
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .no-files { text-align: center; padding: 50px; color: #7f8c8d; font-size: 16px; }
+        
+        /* 预览功能优化 */
+        .preview-controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .preview-actions button {
+            padding: 6px 12px;
+            margin-left: 10px;
+            background: #f5f7fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .preview-actions button:hover {
+            background: #e9ecef;
+        }
+        .file-info {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        /* 响应式调整 */
+        @media (max-width: 768px) {
+            .storage-info { flex-direction: column; gap: 8px; }
+            .modal-content { max-height: 80vh; }
+            .preview-content { height: calc(80vh - 60px); }
+        }
+        /* 上传进度弹窗核心样式 */
+        .upload-progress-panel {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            width: 320px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 9999;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        /* 收起状态 */
+        .upload-progress-panel.collapsed .progress-content {
+            display: none;
+        }
+        .upload-progress-panel.collapsed {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+        }
+
+        /* 切换按钮 */
+        .progress-toggle {
+            display: none; /* 默认隐藏，收起时显示 */
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            color: #1677ff;
+            cursor: pointer;
+            background: #f5f7fa;
+        }
+        .upload-progress-panel.collapsed .progress-toggle {
+            display: flex;
+        }
+
+        /* 进度面板内容 */
+        .progress-content {
+            padding: 0;
+        }
+        .progress-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .progress-header h3 {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+        }
+        .progress-close {
+            border: none;
+            background: transparent;
+            font-size: 18px;
+            color: #999;
+            cursor: pointer;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background 0.2s;
+        }
+        .progress-close:hover {
+            background: #f5f5f5;
+            color: #666;
+        }
+
+        /* 进度列表 */
+        .progress-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .progress-item {
+            position: relative;
+            padding: 12px 16px 12px 16px; /* 右侧增加内边距，给取消按钮留空间 */
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px; /* 增加元素间距 */
+        }
+        .progress-item:last-child {
+            border-bottom: none;
+        }
+        .progress-file-name {
+            font-size: 13px;
+            color: #333;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding-right: 30px; /* 给取消按钮预留空间 */
+        }
+        .progress-bar-container {
+            width: 100%;
+            height: 6px;
+            background: #f0f0f0;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            background: #1677ff;
+            border-radius: 3px;
+            transition: width 0.2s ease;
+            width: 0%;
+        }
+        .progress-percent {
+            font-size: 12px;
+            color: #666;
+            margin-top: 2px;
+            text-align: right; /* 改为右对齐，视觉更统一 */
+            padding-right: 4px;
+        }
+        .progress-status {
+            font-size: 12px;
+            margin-top: 2px;
+            padding-right: 30px; /* 避免被取消按钮遮挡 */
+        }
+        .progress-status.success {
+            color: #52c41a;
+        }
+        .progress-status.error {
+            color: #ff4d4f;
+        }
+        .progress-status.processing {
+            color: #1677ff;
+        }
+        /* 批量操作栏样式 */
+        .batch-actions { 
+            display: none; 
+            margin: 15px 0; 
+            padding: 10px; 
+            background: #f8f9fa; 
+            border-radius: 4px;
+            gap: 10px;
+            align-items: center;
+        }
+        .batch-actions.visible { display: flex; }
+        .batch-btn { 
+            padding: 8px 16px; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            transition: background 0.2s;
+        }
+        .batch-delete { background: #e74c3c; color: white; }
+        .batch-download { background: #3498db; color: white; }
+        /* 复选框样式 */
+        .file-checkbox {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        .rename-input { 
+            flex: 1; 
+            padding: 8px; 
+            border: 1px solid #ddd; 
+            border-radius: 4px; 
+        }
+        .submit-rename { 
+            padding: 8px 16px; 
+            background: #2ecc71; 
+            color: white; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            transition: background 0.2s;
+        }
+        .submit-rename:hover { background: #27ae60; }
+        
+        /* 文件卡片复选框样式补充 */
+        .file-card {
+            position: relative;
+        }
+        .file-checkbox:checked + .file-icon {
+            color: #3498db;
+        }
+        
+        /* 加载中样式 */
+        .loading { 
+            display: none; 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: rgba(0,0,0,0.3); 
+            z-index: 2000; 
+            align-items: center; 
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .file-preview {
+            width: 100%;
+            height: 120px;
+            margin-bottom: 10px;
+            object-fit: contain;
+            display: none; /* 默认隐藏 */
+        }
+        .file-card.image-file .file-preview {
+            display: block;
+        }
+        .file-card.image-file .file-icon {
+            display: none; /* 图片文件隐藏默认图标 */
+        }
+        /* 自定义弹窗样式 - 核心新增 */
+        .custom-dialog {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .custom-dialog.show {
+            opacity: 1;
+        }
+        .dialog-content {
+            background: white;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 400px;
+            padding: 24px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            transform: translateY(-20px);
+            transition: transform 0.3s ease;
+        }
+        .custom-dialog.show .dialog-content {
+            transform: translateY(0);
+        }
+        .dialog-header {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        .dialog-body {
+            font-size: 14px;
+            color: #34495e;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+        .dialog-footer {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+        }
+        .dialog-btn {
+            padding: 8px 24px;
+            border-radius: 4px;
+            border: none;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .dialog-btn.cancel {
+            background: #f5f7fa;
+            color: #666;
+        }
+        .dialog-btn.cancel:hover {
+            background: #e9ecef;
+        }
+        .dialog-btn.confirm {
+            background: #3498db;
+            color: white;
+        }
+        .dialog-btn.confirm:hover {
+            background: #2980b9;
+        }
+        .dialog-btn.danger {
+            background: #e74c3c;
+            color: white;
+        }
+        .dialog-btn.danger:hover {
+            background: #c0392b;
+        }
+
+        /* 通知提示框优化 - 替换原有alert样式 */
+        .notification-toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-50px);
+            background: white;
+            border-radius: 8px;
+            padding: 16px 24px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            opacity: 0;
+            transition: all 0.3s ease;
+            max-width: 90%;
+        }
+        .notification-toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+        .toast-icon {
+            font-size: 20px;
+        }
+        .toast-icon.success {
+            color: #27ae60;
+        }
+        .toast-icon.error {
+            color: #e74c3c;
+        }
+        .toast-icon.warning {
+            color: #f39c12;
+        }
+        .toast-icon.info {
+            color: #3498db;
+        }
+        .toast-text {
+            font-size: 14px;
+            color: #333;
+        }
+
+        /* 修复原有模态框层级问题 */
+        .modal {
+            z-index: 9998; /* 低于自定义弹窗 */
+        }
+        .upload-progress-panel {
+            z-index: 9997; /* 低于模态框 */
+        }
+        .loading {
+            z-index: 99999; /* 最高层级 */
+        }
+        .progress-item {
+            position: relative;
+            padding: 10px 16px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .progress-bottom {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            padding-right: 30px; /* 给取消按钮留空间 */
+        }
+
+        /* 优化取消按钮图标样式 */
+        .progress-cancel svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        /* 响应式适配 */
+        @media (max-width: 480px) {
+            .upload-progress-panel {
+                width: calc(100% - 40px); /* 移动端全屏宽度 */
+            }
+            .progress-item {
+                padding: 10px 12px 10px 12px;
+            }
+            .progress-cancel {
+                right: 12px;
+                top: 10px;
+            }
+        }
+        .progress-cancel {
+            position: absolute;
+            right: 16px; /* 调整右侧间距 */
+            top: 12px; /* 调整顶部位置，避开文件名 */
+            transform: none; /* 移除垂直居中，避免重叠 */
+            background: transparent;
+            border: none;
+            color: #999;
+            cursor: pointer;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%; /* 增加圆形点击区域 */
+            z-index: 10; /* 确保在最上层 */
+            transition: color 0.2s;
+        }
+
+        .progress-cancel:hover {
+            color: #ff4d4f;
+            background-color: #f5f5f5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">NAS 文件管理系统</h1>
+            <div class="storage-info">
+                <div class="storage-item">
+                    <span>总容量：</span>
+                    <span id="total-storage">加载中...</span>
+                </div>
+                <div class="storage-item">
+                    <span>已用：</span>
+                    <span id="used-storage">加载中...</span>
+                    <div class="storage-bar">
+                        <div class="storage-fill" id="storage-progress" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="storage-item">
+                    <span>剩余：</span>
+                    <span id="free-storage">加载中...</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="search-bar">
+            <input type="text" class="search-input" placeholder="搜索文件名..." id="search-input">
+            <input type="date" class="date-filter" id="date-filter">
+            <div class="sort-group" aria-label="时间线排序">
+                <button class="sort-btn active" data-sort="desc">时间降序</button>
+                <button class="sort-btn" data-sort="asc">时间升序</button>
+            </div>
+            <label for="file-upload" class="upload-btn">上传文件</label>
+            <input type="file" id="file-upload" multiple>
+        </div>
+        
+        <div class="category-tabs">
+            <button class="tab-btn active" data-category="all">全部文件</button>
+            <button class="tab-btn" data-category="文件">普通文件</button>
+            <button class="tab-btn" data-category="图片">图片文件</button>
+            <button class="tab-btn" data-category="视频">视频文件</button>
+            <button class="tab-btn" data-category="音乐">音乐文件</button>
+            <button class="tab-btn" data-category="压缩包">压缩文件</button>
+            <button class="tab-btn" data-category="其他">其他文件</button>
+        </div>
+        <!-- 批量操作栏 -->
+        <div class="batch-actions" id="batchActions">
+            <input type="checkbox" id="selectAll" class="select-all">
+            <label for="selectAll">全选</label>
+            <button class="batch-btn batch-delete" id="batchDeleteBtn">批量删除</button>
+            <button class="batch-btn batch-download" id="batchDownloadBtn">批量下载</button>
+            <span id="selectedCount">已选择 0 个文件</span>
+        </div>
+        <div class="file-list" id="file-list">
+            <!-- 文件卡片将通过JS动态生成 -->
+        </div>
+        <!-- 上传进度悬浮弹窗 -->
+        <div id="uploadProgressPanel" class="upload-progress-panel">
+            <!-- 收起/展开按钮 -->
+            <div class="progress-toggle" id="progressToggle">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+            </div>
+            <!-- 进度面板内容 -->
+            <div class="progress-content" id="progressContent">
+                <div class="progress-header">
+                    <h3>文件上传进度</h3>
+                    <button class="progress-close" id="progressClose">×</button>
+                </div>
+                <div class="progress-list" id="progressList"></div>
+            </div>
+        </div>
+        <div class="no-files" id="no-files" style="display: none;">
+            暂无文件数据
+        </div>
+    </div>
+
+    <!-- 查看文件模态框 -->
+    <div class="modal" id="view-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="view-modal-title">文件预览</h2>
+                <span class="close-modal" id="close-view-modal">&times;</span>
+            </div>
+            <div class="preview-content" id="preview-content">
+                <!-- 预览内容将在这里显示 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 重命名模态框 -->
+    <div class="modal" id="rename-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">重命名文件</h2>
+                <span class="close-modal" id="close-rename-modal">&times;</span>
+            </div>
+            <form class="rename-form" id="rename-form">
+                <input type="hidden" id="rename-file-path">
+                <input type="text" class="rename-input" id="new-file-name" placeholder="输入新文件名（包含后缀）">
+                <button type="submit" class="submit-rename">确认</button>
+            </form>
+        </div>
+    </div>
+    <!-- 自定义确认/提示弹窗 - 新增 -->
+    <div class="custom-dialog" id="customDialog">
+        <div class="dialog-content">
+            <div class="dialog-header" id="dialogHeader"></div>
+            <div class="dialog-body" id="dialogBody"></div>
+            <div class="dialog-footer" id="dialogFooter"></div>
+        </div>
+    </div>
+
+    <!-- 通知提示框 - 新增 -->
+    <div class="notification-toast" id="notificationToast">
+        <div class="toast-icon" id="toastIcon">✓</div>
+        <div class="toast-text" id="toastText"></div>
+    </div>
+    <!-- 加载中提示 -->
+    <div class="loading" id="loading">
+        <div class="loading-spinner"></div>
+    </div>
+    
+    <script>
+        // 全局变量
+        let currentCategory = 'all';
+        let currentDate = '';
+        let searchKeyword = '';
+        let currentSort = 'desc';
+        let currentPreviewFile = { fileId: '', name: '', size: 0, mtime: 0 };
+        // 弹窗队列管理 - 核心新增
+        const dialogQueue = [];
+        let isDialogShowing = false;
+
+        // DOM 元素
+        const fileListEl = document.getElementById('file-list');
+        const noFilesEl = document.getElementById('no-files');
+        const searchInput = document.getElementById('search-input');
+        const dateFilter = document.getElementById('date-filter');
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        const fileUpload = document.getElementById('file-upload');
+        const sortBtns = document.querySelectorAll('.sort-btn');
+        const viewModal = document.getElementById('view-modal');
+        const previewContent = document.getElementById('preview-content');
+        const viewModalTitle = document.getElementById('view-modal-title');
+        const closeViewModal = document.getElementById('close-view-modal');
+        const renameModal = document.getElementById('rename-modal');
+        const renameForm = document.getElementById('rename-form');
+        const renameFilePath = document.getElementById('rename-file-path');
+        const newFileName = document.getElementById('new-file-name');
+        const closeRenameModal = document.getElementById('close-rename-modal');
+        const loading = document.getElementById('loading');
+        const totalStorageEl = document.getElementById('total-storage');
+        const usedStorageEl = document.getElementById('used-storage');
+        const freeStorageEl = document.getElementById('free-storage');
+        const storageProgressEl = document.getElementById('storage-progress');
+        // 批量操作事件监听
+        document.getElementById('selectAll').addEventListener('change', toggleSelectAll);
+        document.getElementById('batchDeleteBtn').addEventListener('click', batchDeleteFiles);
+        document.getElementById('batchDownloadBtn').addEventListener('click', batchDownloadFiles);
+
+        // 关闭查看模态框
+        closeViewModal.addEventListener('click', () => {
+            closeModal(viewModal);
+            previewContent.innerHTML = '';
+        });
+
+        // 初始化
+        window.onload = () => {
+            initStorageInfo();
+            initEventListeners();
+            loadFiles();
+        };
+        // 自定义提示框（替换alert）
+        function showToast(type, message, duration = 3000) {
+            const toast = document.getElementById('notificationToast');
+            const icon = document.getElementById('toastIcon');
+            const text = document.getElementById('toastText');
+            
+            // 设置图标和类型
+            const icons = {
+                success: '✓',
+                error: '✕',
+                warning: '⚠️',
+                info: 'ℹ️'
+            };
+            icon.className = `toast-icon ${type}`;
+            icon.textContent = icons[type] || icons.info;
+            text.textContent = message;
+            
+            // 显示提示
+            toast.classList.add('show');
+            
+            // 自动隐藏
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, duration);
+        }
+
+        // 自定义确认框（替换confirm）
+        function showConfirm(options) {
+            return new Promise((resolve) => {
+                // 加入队列
+                dialogQueue.push({
+                    type: 'confirm',
+                    options,
+                    resolve
+                });
+                
+                // 处理队列
+                processDialogQueue();
+            });
+        }
+
+        // 处理弹窗队列
+        function processDialogQueue() {
+            if (isDialogShowing || dialogQueue.length === 0) return;
+            
+            const dialog = dialogQueue.shift();
+            isDialogShowing = true;
+            
+            const dialogEl = document.getElementById('customDialog');
+            const header = document.getElementById('dialogHeader');
+            const body = document.getElementById('dialogBody');
+            const footer = document.getElementById('dialogFooter');
+            
+            // 清空footer
+            footer.innerHTML = '';
+            
+            // 设置内容
+            header.textContent = dialog.options.title || '提示';
+            body.textContent = dialog.options.message || '';
+            
+            // 根据类型创建按钮
+            if (dialog.type === 'confirm') {
+                // 取消按钮
+                const cancelBtn = document.createElement('button');
+                cancelBtn.className = 'dialog-btn cancel';
+                cancelBtn.textContent = dialog.options.cancelText || '取消';
+                cancelBtn.addEventListener('click', () => {
+                    dialogEl.classList.remove('show');
+                    setTimeout(() => {
+                        dialogEl.style.display = 'none';
+                        isDialogShowing = false;
+                        dialog.resolve(false);
+                        processDialogQueue(); // 处理下一个
+                    }, 300);
+                });
+                
+                // 确认按钮
+                const confirmBtn = document.createElement('button');
+                confirmBtn.className = `dialog-btn ${dialog.options.danger ? 'danger' : 'confirm'}`;
+                confirmBtn.textContent = dialog.options.confirmText || '确认';
+                confirmBtn.addEventListener('click', () => {
+                    dialogEl.classList.remove('show');
+                    setTimeout(() => {
+                        dialogEl.style.display = 'none';
+                        isDialogShowing = false;
+                        dialog.resolve(true);
+                        processDialogQueue(); // 处理下一个
+                    }, 300);
+                });
+                
+                // 添加按钮
+                footer.appendChild(cancelBtn);
+                footer.appendChild(confirmBtn);
+            }
+            
+            // 显示弹窗
+            dialogEl.style.display = 'flex';
+            setTimeout(() => {
+                dialogEl.classList.add('show');
+            }, 10);
+            
+            // 点击外部关闭
+            dialogEl.addEventListener('click', (e) => {
+                if (e.target === dialogEl) {
+                    dialogEl.classList.remove('show');
+                    setTimeout(() => {
+                        dialogEl.style.display = 'none';
+                        isDialogShowing = false;
+                        dialog.resolve(false);
+                        processDialogQueue(); // 处理下一个
+                    }, 300);
+                }
+            });
+            
+            // ESC关闭
+            const escHandler = (e) => {
+                if (e.key === 'Escape') {
+                    dialogEl.classList.remove('show');
+                    setTimeout(() => {
+                        dialogEl.style.display = 'none';
+                        isDialogShowing = false;
+                        dialog.resolve(false);
+                        processDialogQueue(); // 处理下一个
+                        document.removeEventListener('keydown', escHandler);
+                    }, 300);
+                }
+            };
+            document.addEventListener('keydown', escHandler);
+        }
+        // 初始化存储信息
+        function initStorageInfo() {
+            fetch('api/storage.php')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        totalStorageEl.textContent = formatSize(data.total);
+                        usedStorageEl.textContent = formatSize(data.used);
+                        freeStorageEl.textContent = formatSize(data.free);
+                        const progress = (data.used / data.total) * 100;
+                        storageProgressEl.style.width = `${progress.toFixed(1)}%`;
+                        
+                        // 根据使用率设置不同颜色
+                        if (progress > 80) {
+                            storageProgressEl.style.background = '#e74c3c';
+                        } else if (progress > 60) {
+                            storageProgressEl.style.background = '#f39c12';
+                        }
+                    } else {
+                        totalStorageEl.textContent = '暂未获取';
+                        usedStorageEl.textContent = '-';
+                        freeStorageEl.textContent = '-';
+                        showToast('error','获取存储信息失败：' + data.message);
+                    }
+                })
+                .catch(err => {
+                    totalStorageEl.textContent = '暂未获取';
+                    usedStorageEl.textContent = '-';
+                    freeStorageEl.textContent = '-';
+                    console.error('存储信息获取失败：', err)
+                });
+        }
+
+        // 初始化事件监听
+        function initEventListeners() {
+            // 标签切换
+            tabBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    tabBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentCategory = btn.dataset.category;
+                    loadFiles();
+                });
+            });
+
+            // 搜索
+            searchInput.addEventListener('input', (e) => {
+                searchKeyword = e.target.value.trim().toLowerCase();
+                loadFiles();
+            });
+
+            // 日期筛选
+            dateFilter.addEventListener('change', (e) => {
+                currentDate = e.target.value;
+                loadFiles();
+            });
+
+            // 时间线排序
+            sortBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    sortBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentSort = btn.dataset.sort || 'desc';
+                    loadFiles();
+                });
+            });
+
+            // 文件上传
+            fileUpload.addEventListener('change', handleFileUpload);
+
+            // 关闭查看模态框
+            closeViewModal.addEventListener('click', () => {
+                closeModal(viewModal);
+                previewContent.innerHTML = '';
+            });
+
+            // 关闭重命名模态框
+            closeRenameModal.addEventListener('click', () => {
+                closeModal(renameModal);
+                renameForm.reset();
+            });
+
+            // 重命名提交
+            renameForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                handleRename();
+            });
+
+            // 点击模态框外部关闭
+            window.addEventListener('click', (e) => {
+                if (e.target === viewModal) {
+                    closeModal(viewModal);
+                    previewContent.innerHTML = '';
+                }
+                if (e.target === renameModal) {
+                    closeModal(renameModal);
+                    renameForm.reset();
+                }
+            });
+
+            // 键盘ESC关闭模态框
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    if (isDialogShowing) {
+                        const dialogEl = document.getElementById('customDialog');
+                        dialogEl.classList.remove('show');
+                        setTimeout(() => {
+                            dialogEl.style.display = 'none';
+                            isDialogShowing = false;
+                            processDialogQueue();
+                        }, 300);
+                        return;
+                    }
+                    if (viewModal.classList.contains('show')) {
+                        closeModal(viewModal);
+                        previewContent.innerHTML = '';
+                    }
+                    if (renameModal.classList.contains('show')) {
+                        closeModal(renameModal);
+                        renameForm.reset();
+                    }
+                }
+            });
+        }
+        let uploadedFiles = [];
+        // 初始化时从页面加载已有文件信息
+        function initFileCache() {
+            uploadedFiles = [];
+            const fileCards = document.querySelectorAll('.file-card');
+            fileCards.forEach(card => {
+                const name = card.querySelector('.file-name').textContent.trim();
+                const sizeText = card.querySelector('.file-meta span:first-child').textContent.trim();
+                const size = parseSizeToBytes(sizeText);
+                uploadedFiles.push({ name, size });
+            });
+        }
+
+        // 页面加载完成后初始化缓存
+        window.addEventListener('load', () => {
+            initFileCache();
+            initStorageInfo();
+            // 监听文件列表更新事件（如分类切换、搜索后），重新初始化缓存
+            document.querySelectorAll('.tab-btn').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    setTimeout(initFileCache, 500); // 等待列表渲染完成
+                });
+            });
+            document.getElementById('search-input').addEventListener('input', () => {
+                setTimeout(initFileCache, 500);
+            });
+            document.getElementById('date-filter').addEventListener('change', () => {
+                setTimeout(initFileCache, 500);
+            });
+        });
+        // 加载文件列表
+        function loadFiles() {
+            showLoading();
+            fetch('api/server.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'listFiles',
+                    category: currentCategory,
+                    date: currentDate,
+                    keyword: searchKeyword,
+                    sort: currentSort
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                hideLoading();
+                if (data.success) {
+                    renderFileList(data.files);
+                    document.body.dataset.filesLoaded = "true";
+                    initFileCache();
+                } else {
+                    fileListEl.innerHTML = '';
+                    noFilesEl.style.display = 'block';
+                    document.body.dataset.filesLoaded = "false";
+                    uploadedFiles = [];
+                    showToast('error','加载文件失败：' + data.message);
+                }
+            })
+            .catch(err => {
+                hideLoading();
+                console.error('加载文件失败：', err);
+                showToast('warning','文件加载失败，请重试');
+            });
+        }
+        // 局部更新文件列表，保留当前页面状态
+        function fetchAndUpdateFileList() {
+            const scrollPosition = fileListEl.scrollTop;
+            fetch('api/server.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'listFiles',
+                    category: currentCategory,
+                    date: currentDate,
+                    keyword: searchKeyword,
+                    sort: currentSort
+                })
+            })
+            .then(res => {
+                if (!res.ok) throw new Error('网络请求失败');
+                return res.json();
+            })
+            .then(data => {
+                if (data.success && Array.isArray(data.files)) {
+                    const selectedFileIds = getSelectedFileIds();
+                    renderFileList(data.files); // 确保renderFileList函数能正确渲染空列表
+                    document.body.dataset.filesLoaded = "true";
+                    initFileCache();
+                    restoreSelectedFileIds(selectedFileIds);
+                    fileListEl.scrollTop = scrollPosition;
+                } else {
+                    console.error('文件列表数据异常', data);
+                    renderFileList([]); // 异常时渲染空列表，避免界面卡住
+                }
+            })
+            .catch(err => {
+                console.error('更新文件列表失败：', err);
+                statusText.textContent = '加载失败，请重试';
+                // 允许用户手动重试（可选）
+                const retryBtn = document.createElement('button');
+                retryBtn.textContent = '重试';
+                retryBtn.onclick = fetchAndUpdateFileList;
+                fileListEl.appendChild(retryBtn);
+            });
+        }
+
+        // 获取当前选中的文件ID
+        function getSelectedFileIds() {
+            const checkboxes = document.querySelectorAll('.file-checkbox:checked');
+            return Array.from(checkboxes).map(cb => cb.closest('.file-card').dataset.fileId);
+        }
+
+        // 恢复选中的文件ID
+        function restoreSelectedFileIds(fileIds) {
+            fileIds.forEach(fileId => {
+                const fileCard = document.querySelector(`.file-card[data-file-id="${fileId}"]`);
+                if (fileCard) {
+                    const checkbox = fileCard.querySelector('.file-checkbox');
+                    if (checkbox) checkbox.checked = true;
+                    fileCard.classList.add('selected');
+                }
+            });
+            // 更新选中计数
+            updateSelectionStatus();
+        }
+        // 渲染文件列表
+        function renderFileList(files) {
+            fileListEl.innerHTML = '';
+            if (files.length === 0) {
+                noFilesEl.style.display = 'block';
+                return;
+            }
+            noFilesEl.style.display = 'none';
+
+            files.forEach(file => {
+                const fileCard = document.createElement('div');
+                fileCard.className = 'file-card';
+                fileCard.dataset.fileId = file.fileId; // 使用fileId替代path
+
+                // 图标选择
+                let icon = '📄';
+                const imageExtensions = [
+                    'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tif', 'tiff',
+                    'psd', 'ai', 'eps', 'raw', 'cr2', 'nef', 'orf', 'sr2', 'heic', 'heif',
+                    'ppm', 'pgm', 'pbm', 'pnm', 'webp', 'avif', 'jfif', 'pjpeg', 'pjp'
+                ];
+                const fileExt = file.name.split('.').pop().toLowerCase();
+                if (imageExtensions.includes(fileExt)) {
+                fileCard.classList.add('image-file');
+                }else {
+                    // 设置对应图标
+                    const iconMap = {
+                        '音乐': '🎵',
+                        '视频': '🎬',
+                        '压缩包': '📦',
+                        '其他': '❓'
+                    };
+                    icon = iconMap[file.category] || '📄';
+                }
+                fileCard.innerHTML = `
+                    <input type="checkbox" class="file-checkbox" data-file-id="${file.fileId}">
+                    <!-- 新增图片预览元素 - 使用API获取图片路径 -->
+                    ${file.category === '图片' ? `
+                    <img class="file-preview" data-file-id="${file.fileId}"
+                     alt="${file.name}"
+                    onerror="this.style.display='none'">  <!-- 增加错误处理 -->
+                    ` : ''}
+                    <div class="file-icon">${icon}</div>
+                    <div class="file-name">${file.name}</div>
+                    <div class="file-meta">
+                        <span>${formatSize(file.size)}</span> | 
+                        <span>${formatDate(file.mtime)}</span>
+                    </div>
+                    <div class="file-actions">
+                        <button class="action-btn view-btn" data-file-id="${file.fileId}" data-name="${file.name}" data-size="${file.size}" data-mtime="${file.mtime}">查看</button>
+                        <button class="action-btn rename-btn" data-file-id="${file.fileId}" data-name="${file.name}">重命名</button>
+                        <button class="action-btn delete-btn" data-file-id="${file.fileId}">删除</button>
+                    </div>
+                `;
+                
+                // 如果是图片文件，加载预览图
+                if (file.category === '图片') {
+                    const previewImg = fileCard.querySelector('.file-preview');
+                    fetch('api/server.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'viewFile',
+                            fileId: file.fileId
+                        })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success && previewImg) {
+                            previewImg.src = data.content;
+                        }
+                    })
+                    .catch(err => {
+                        console.error('加载图片预览失败:', err);
+                    });
+                }
+                
+                // 绑定复选框事件
+                fileCard.addEventListener('click', (e) => {
+                    // 排除按钮区域：点击按钮时不切换复选框
+                    if (e.target.closest('.action-btn')) {
+                        return; // 终止函数，不触发复选框切换
+                    }
+                    const checkbox = fileCard.querySelector('.file-checkbox');
+                    // 切换复选框状态
+                    checkbox.checked = !checkbox.checked;
+                    // 同步卡片选中样式
+                    if (checkbox.checked) {
+                        fileCard.classList.add('selected');
+                    } else {
+                        fileCard.classList.remove('selected');
+                    }
+                    // 更新全局选中状态（批量操作栏、全选框、选中数量）
+                    updateSelectionStatus();
+                });
+                // 绑定按钮事件
+                fileCard.querySelector('.view-btn').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const btn = e.target;
+                    currentPreviewFile = {
+                        fileId: btn.dataset.fileId,
+                        name: btn.dataset.name,
+                        size: btn.dataset.size,
+                        mtime: btn.dataset.mtime
+                    };
+                    handleViewFile(btn.dataset.fileId, btn.dataset.name);
+                });
+                fileCard.querySelector('.rename-btn').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    handleOpenRenameModal(e.target.dataset.fileId, e.target.dataset.name);
+                });
+                fileCard.querySelector('.delete-btn').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showConfirm({
+                        title: '确认删除',
+                        message: '确定要彻底删除该文件吗？此操作不可恢复！',
+                        danger: true,
+                        confirmText: '删除',
+                        cancelText: '取消'
+                    }).then((confirmed) => {
+                        if (confirmed) {
+                            handleDeleteFile(e.target.dataset.fileId);
+                        }
+                    });
+                });
+
+                fileListEl.appendChild(fileCard);
+            });
+        }
+        // 存储上传任务映射
+        const uploadTasks = new Map();
+        // 初始化进度面板
+        function initProgressPanel() {
+            const panel = document.getElementById('uploadProgressPanel');
+            const toggleBtn = document.getElementById('progressToggle');
+            const closeBtn = document.getElementById('progressClose');
+            
+            // 切换收起/展开
+            toggleBtn.addEventListener('click', () => {
+                panel.classList.toggle('collapsed');
+            });
+            
+            // 关闭面板
+            closeBtn.addEventListener('click', () => {
+                panel.style.display = 'none';
+            });
+            
+            // 默认隐藏面板
+            panel.style.display = 'none';
+        }
+        // 创建单个文件进度项
+        function createProgressItem(fileId, fileName) {
+            const progressList = document.getElementById('progressList');
+            const item = document.createElement('div');
+            item.id = `progress-${fileId}`;
+            item.className = 'progress-item';
+            item.innerHTML = `
+                <div class="progress-file-name">${fileName}</div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" style="width: 0%"></div>
+                </div>
+                <div class="progress-bottom">
+                    <div class="progress-percent">0%</div>
+                    <div class="progress-status processing">上传中...</div>
+                </div>
+                <button class="progress-cancel" data-file-id="${fileId}" title="取消">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            `;
+            // 绑定取消按钮事件
+            const cancelBtn = item.querySelector('.progress-cancel');
+            cancelBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // 防止事件冒泡
+                const fileId = e.target.dataset.fileId || e.target.closest('[data-file-id]').dataset.fileId;
+                cancelUpload(fileId);
+            });
+            progressList.appendChild(item);
+            return item;
+        }
+        // 更新文件上传进度
+        function updateProgress(fileId, percent) {
+            const item = document.getElementById(`progress-${fileId}`);
+            if (!item) return;
+            
+            const bar = item.querySelector('.progress-bar');
+            const percentText = item.querySelector('.progress-percent');
+            percent = Math.min(100, Math.max(0, percent));
+            
+            bar.style.width = `${percent}%`;
+            percentText.textContent = `${percent.toFixed(1)}%`;
+        }
+        // 更新文件上传状态
+        function updateProgressStatus(fileId, status, message = '') {
+            const item = document.getElementById(`progress-${fileId}`);
+            if (!item) return;
+            
+            const statusEl = item.querySelector('.progress-status');
+            statusEl.className = `progress-status ${status}`;
+            
+            switch(status) {
+                case 'success':
+                    statusEl.textContent = '上传成功';
+                    // 成功后3秒自动移除
+                    setTimeout(() => {
+                        item.remove();
+                        // 如果进度列表为空，隐藏整个面板
+                        if (document.getElementById('progressList').children.length === 0) {
+                            document.getElementById('uploadProgressPanel').style.display = 'none';
+                        }
+                    }, 3000);
+                    break;
+                case 'error':
+                    statusEl.textContent = `上传失败: ${message || '未知错误'}`;
+                    // 失败后5秒自动移除
+                    setTimeout(() => {
+                        item.remove();
+                        if (document.getElementById('progressList').children.length === 0) {
+                            document.getElementById('uploadProgressPanel').style.display = 'none';
+                        }
+                    }, 5000);
+                    break;
+                case 'processing':
+                    statusEl.textContent = '上传中...';
+                    break;
+                case 'abort':
+                    statusEl.textContent = '上传已取消';
+                    item.style.opacity = '0';
+                    item.style.transition = 'opacity 3s ease';
+                    item.remove();
+                    setTimeout(() => {
+                        checkAndHideProgressPanel();
+                    }, 300);
+                    break;
+            }
+        }
+        function checkAndHideProgressPanel() {
+            const progressList = document.getElementById('progressList');
+            const panel = document.getElementById('uploadProgressPanel');
+            // 列表为空时立即隐藏面板
+            if (progressList.children.length === 0) {
+                panel.style.display = 'none';
+            }
+        }
+
+        // 分片上传配置
+        const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB每片
+        const MAX_PARALLEL = 3; // 最大并行上传数
+        
+
+        // 处理文件上传（流式 + 进度显示）
+        function handleFileUpload(e) {
+            const files = e.target.files;
+            if (files.length === 0) return;
+
+            // 显示进度面板
+            const panel = document.getElementById('uploadProgressPanel');
+            panel.style.display = 'block';
+            panel.classList.remove('collapsed');
+            
+            // 弹窗队列管理（确保逐个显示）
+            const alertQueue = Array.from(files);
+            let currentIndex = 0;
+            
+            // 递归处理队列中的文件
+            function processNextFile() {
+                if (currentIndex >= alertQueue.length) {
+                    // 队列处理完毕，清空上传控件
+                    fileUpload.value = '';
+                    return;
+                }
+
+                const file = alertQueue[currentIndex];
+                currentIndex++;
+
+                // 1. 先调用后端接口检查文件是否存在
+                fetch('api/server.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'checkFileExists',
+                        fileName: file.name,
+                        fileSize: file.size
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.exists) {
+                        // 2. 文件存在：显示弹窗，等待弹窗消失后处理下一个
+                        showDuplicateAlert(file.name).then(() => {
+                            processNextFile();
+                        });
+                    } else {
+                        // 3. 文件不存在：正常上传，直接处理下一个
+                        uploadedFiles.push({ name: file.name, size: file.size });
+                        processFileUpload(file);
+                        processNextFile();
+                    }
+                })
+                .catch(err => {
+                    console.error('检查文件存在性失败', err);
+                    processNextFile(); // 忽略错误，继续处理下一个
+                });
+            }
+            // 开始处理队列
+            processNextFile();
+        }
+        // 替换原showDuplicateAlert函数，返回Promise控制显示顺序
+        function showDuplicateAlert(fileName) {
+            return new Promise((resolve) => {
+                const existingAlert = document.querySelector(`.duplicate-alert[data-file="${fileName}"]`);
+                if (existingAlert) {
+                    existingAlert.remove();
+                }
+
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'duplicate-alert';
+                alertDiv.dataset.file = fileName;
+                alertDiv.innerHTML = `
+                    <div class="alert-content">
+                        <span class="alert-icon">⚠️</span>
+                        <span class="alert-text">文件 "${fileName}" 已存在，请勿重复上传</span>
+                    </div>
+                `;
+                document.body.appendChild(alertDiv);
+
+                // 显示动画
+                setTimeout(() => {
+                    alertDiv.style.opacity = '1';
+                    alertDiv.style.visibility = 'visible';
+                    alertDiv.style.transform = 'translateX(0)';
+                }, 10);
+
+                // 3秒后隐藏，触发下一个弹窗
+                setTimeout(() => {
+                    alertDiv.style.opacity = '0';
+                    alertDiv.style.visibility = 'hidden';
+                    alertDiv.style.transform = 'translateX(100%)';
+                    // 动画结束后移除并 resolve
+                    setTimeout(() => {
+                        if (alertDiv.parentNode) {
+                            alertDiv.remove();
+                        }
+                        resolve(); // 通知队列可以显示下一个
+                    }, 300);
+                }, 3000);
+            });
+        }
+        const style = document.createElement('style');
+        style.textContent = `
+            .duplicate-alert {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: white;
+                padding: 16px 24px;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                z-index: 99999; /* 提高层级，确保在最顶层 */
+                border-left: 4px solid #faad14;
+                /* 修复动画：添加 fill-mode 确保动画结束后保持最后状态 */
+                animation: slideIn 0.3s ease forwards, fadeOut 0.3s ease 3s forwards;
+                /* 初始状态：隐藏在右侧 */
+                transform: translateX(100%);
+                opacity: 0;
+                visibility: hidden;
+            }
+
+            @keyframes slideIn {
+                from { 
+                    transform: translateX(100%); 
+                    opacity: 0; 
+                    visibility: hidden;
+                }
+                to { 
+                    transform: translateX(0); 
+                    opacity: 1; 
+                    visibility: visible;
+                }
+            }
+
+            @keyframes fadeOut {
+                from { 
+                    opacity: 1; 
+                    visibility: visible;
+                }
+                to { 
+                    opacity: 0; 
+                    visibility: hidden;
+                    transform: translateX(100%); /* 消失时滑回右侧 */
+                }
+            }
+
+            .alert-content {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .alert-icon {
+                color: #faad14;
+                font-size: 18px;
+            }
+
+            .alert-text {
+                color: #333;
+                font-size: 14px;
+            }
+        `;
+        document.head.appendChild(style);
+        // 处理单个文件的分片上传
+        function processFileUpload(file) {
+            // 每个文件独立的状态
+            const fileId = `${file.name}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+            const fileHash = generateFileHash(file);
+            let completedChunks = 0;
+            let totalProgress = 0;
+            // 每个文件独立的并行计数器（关键！）
+            let fileCurrentParallel = 0; 
+
+            // 创建进度项
+            createProgressItem(fileId, file.name);
+            
+            // 生成所有分片索引
+            const chunkIndexes = Array.from({length: totalChunks}, (_, i) => i);
+            
+            // 更新总体进度
+            function updateFileProgress() {
+                totalProgress = (completedChunks / totalChunks) * 100;
+                updateProgress(fileId, totalProgress);
+                
+                // 所有分片上传完成，请求合并
+                if (completedChunks === totalChunks) {
+                    mergeChunks(fileId, file.name, fileHash, totalChunks);
+                }
+            }
+            const xhrRequests = [];
+            // 递归上传分片（控制并行数量）
+            function uploadNextChunk() {
+                if (!uploadTasks.has(fileId)) return;
+
+                if (chunkIndexes.length === 0 || fileCurrentParallel >= MAX_PARALLEL) {
+                    return;
+                }
+                
+                fileCurrentParallel++; // 使用文件独立的计数器
+                const chunkIndex = chunkIndexes.shift();
+                
+                // 计算分片范围
+                const start = chunkIndex * CHUNK_SIZE;
+                const end = Math.min(start + CHUNK_SIZE, file.size);
+                const chunk = file.slice(start, end);
+                
+                // 创建FormData
+                const formData = new FormData();
+                formData.append('chunk', chunk);
+                formData.append('fileId', fileHash);
+                formData.append('chunkIndex', chunkIndex);
+                formData.append('totalChunks', totalChunks);
+                formData.append('fileName', file.name);
+                
+                // 上传分片
+                const xhr = new XMLHttpRequest();
+                xhrRequests.push(xhr); // 存储请求
+                xhr.open('POST', 'api/server.php?action=uploadChunk', true);
+                
+                xhr.upload.addEventListener('progress', (e) => {
+                    //进度清空，回退到0%
+                    if (!uploadTasks.has(fileId)) {
+                        xhr.abort();
+                        return;
+                    }
+                    if (e.lengthComputable) {
+                        // 计算当前分片对总进度的贡献
+                        const chunkProgress = (completedChunks / totalChunks) * 100 + (e.loaded / e.total) * (100 / totalChunks);
+                        updateProgress(fileId, chunkProgress);
+                    }
+                });
+                
+                xhr.addEventListener('load', () => {
+                    if (!uploadTasks.has(fileId)) return;
+                    fileCurrentParallel--; // 归位当前文件的计数器
+                    completedChunks++;
+                    
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        if (!data.success) {
+                            // 上传失败，重新加入队列重试
+                            chunkIndexes.push(chunkIndex);
+                            console.error(`分片 ${chunkIndex} 上传失败:`, data.message);
+                        }
+                    } catch (err) {
+                        console.error('解析响应失败:', err);
+                        chunkIndexes.push(chunkIndex);
+                    }
+                    
+                    updateFileProgress();
+                    uploadNextChunk(); // 继续上传下一个分片
+                });
+                // 取消时的处理
+                xhr.addEventListener('abort', () => {
+                    fileCurrentParallel--;
+                    console.log(`文件 ${file.name} 分片 ${chunkIndex} 已取消`);
+                });
+                xhr.addEventListener('error', () => {
+                    // 上传失败，重新加入队列重试
+                    if (!uploadTasks.has(fileId)) return;
+                    fileCurrentParallel--; // 归位当前文件的计数器
+                    chunkIndexes.push(chunkIndex); // 失败重试
+                    uploadNextChunk();
+                });
+                
+                xhr.send(formData);
+                uploadNextChunk(); // 继续上传下一个分片
+            }
+            // 将取消函数存入上传任务映射
+            uploadTasks.set(fileId, {
+                fileHash: fileHash, // 存储fileHash以便取消时使用
+                abort: () => {
+                    // 终止所有未完成的XHR请求
+                    xhrRequests.forEach(xhr => {
+                        if (xhr.readyState !== 4) {
+                            xhr.abort();
+                        }
+                    });
+                    // 通知后端清理临时文件
+                    cleanupUpload(fileHash);
+                    // 更新UI状态
+                    updateProgressStatus(fileId, 'abort');
+                }
+            });
+            uploadNextChunk();
+        }
+
+        // 添加取消上传的API
+        function cancelUpload(fileId) {
+            const task = uploadTasks.get(fileId);
+            if (task) {
+                task.abort();
+                updateProgressStatus(fileId, 'abort');
+                uploadTasks.delete(fileId);
+                // 注意：cleanupUpload已在task.abort()中调用，这里不需要重复调用
+            }
+        }
+
+        // 通知后端清理临时文件
+        function cleanupUpload(fileHash) {
+            fetch('api/server.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'cleanupUpload',
+                    fileId: fileHash
+                })
+            }).catch(err => {
+                console.error('清理临时文件失败:', err);
+            });
+        }
+        // 上传成功回调（独立函数）
+        function onUploadSuccess() {
+            // 刷新文件列表后重新初始化缓存
+            loadFiles().then(() => {
+                initFileCache();
+            });
+        }
+        // 检查是否是否存在重复文件（根据文件名和大小判断）
+        function checkDuplicateFile(file) {
+            // 获取当前已加载的所有文件
+            const fileCards = document.querySelectorAll('.file-card');
+            const fileName = file.name;
+            const fileSize = file.size;
+            
+            // 遍历现有文件检查重复
+            for (let card of fileCards) {
+                const nameEl = card.querySelector('.file-name');
+                const sizeEl = card.querySelector('.file-meta span:first-child');
+                
+                if (!nameEl || !sizeEl) continue;
+                
+                // 提取现有文件的名称和大小
+                const existingName = nameEl.textContent.trim();
+                const existingSizeText = sizeEl.textContent.trim();
+                const existingSize = parseSizeToBytes(existingSizeText);
+                
+                // 比较文件名和大小（两者都相同才才认为是重复文件）
+                if (existingName === fileName && existingSize === fileSize) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // 辅助函数：将格式化的大小文本转换为字节数
+        function parseSizeToBytes(sizeText) {
+            const units = {
+                'B': 1,
+                'KB': 1024,
+                'MB': 1024 * 1024,
+                'GB': 1024 * 1024 * 1024
+            };
+            
+            const match = sizeText.match(/^(\d+(?:\.\d+)?)\s*([BKMGT]B)$/i);
+            if (!match) return 0;
+            
+            const value = parseFloat(match[1]);
+            const unit = match[2].toUpperCase();
+            
+            return Math.round(value * units[unit]);
+        }
+        // 批量操作相关函数
+        function updateSelectionStatus() {
+            const checkboxes = document.querySelectorAll('.file-checkbox:checked');
+            const totalCheckboxes = document.querySelectorAll('.file-checkbox').length;
+            const selectAllCheckbox = document.getElementById('selectAll');
+            const batchActions = document.getElementById('batchActions');
+            const selectedCount = document.getElementById('selectedCount');
+
+            // 更新已选择数量
+            selectedCount.textContent = `已选择 ${checkboxes.length} 个文件`;
+
+            // 控制批量操作栏显示/隐藏
+            if (checkboxes.length > 0) {
+                batchActions.classList.add('visible');
+            } else {
+                batchActions.classList.remove('visible');
+            }
+
+            // 更新全选框状态
+            selectAllCheckbox.checked = checkboxes.length === totalCheckboxes && totalCheckboxes > 0;
+        }
+
+        // 全选/取消全选
+        function toggleSelectAll() {
+            const selectAllCheckbox = document.getElementById('selectAll');
+            const checkboxes = document.querySelectorAll('.file-checkbox');
+            
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+                // 更新文件卡片选中状态
+                const fileCard = checkbox.closest('.file-card');
+                if (selectAllCheckbox.checked) {
+                    fileCard.classList.add('selected');
+                } else {
+                    fileCard.classList.remove('selected');
+                }
+            });
+            updateSelectionStatus();
+        }
+
+        // 获取所有选中的文件ID
+        function getSelectedFileIds() {
+            const checkboxes = document.querySelectorAll('.file-checkbox:checked');
+            return Array.from(checkboxes).map(checkbox => checkbox.dataset.fileId);
+        }
+
+        // 批量删除选中文件
+        function batchDeleteFiles() {
+            const selectedFileIds = getSelectedFileIds();
+            if (selectedFileIds.length === 0) return;
+            
+            const filesToDelete = [];
+            selectedFileIds.forEach(fileId => {
+                const fileCard = document.querySelector(`.file-card[data-file-id="${fileId}"]`);
+                if (fileCard) {
+                    const fileName = fileCard.querySelector('.file-name').textContent.trim();
+                    const fileSizeText = fileCard.querySelector('.file-meta span:first-child').textContent.trim();
+                    filesToDelete.push({
+                        name: fileName,
+                        size: parseSizeToBytes(fileSizeText)
+                    });
+                }
+            });
+
+            showConfirm({
+                title: '批量删除确认',
+                message: `确定要删除这 ${selectedFileIds.length} 个文件吗？此操作不可恢复！`,
+                danger: true,
+                confirmText: '确认',
+                cancelText: '取消'
+            }).then((confirmed) => {
+                if (!confirmed) return;
+                showLoading();
+                
+                // 这里使用串行删除，也可以改为并行删除
+                const deleteNext = (index) => {
+                    if (index >= selectedFileIds.length) {
+                        hideLoading();
+                        showToast('success','所有选中文件已删除');
+                        filesToDelete.forEach(file => {
+                            removeFileFromCache(file.name, file.size);
+                        });
+                        fetchAndUpdateFileList();
+                        initStorageInfo();
+                        resetSelectionStatus(); // 清空选中状态，隐藏批量操作栏
+                        return;
+                    }
+
+                    fetch('api/server.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'deleteFile',
+                            fileId: selectedFileIds[index]
+                        })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (!data.success) {
+                            console.error(`删除失败: ${data.message}`);
+                        }
+                        deleteNext(index + 1);
+                    })
+                    .catch(err => {
+                        console.error('删除失败：', err);
+                        deleteNext(index + 1);
+                    });
+                };
+
+                deleteNext(0);
+            });
+        }
+
+        // 批量下载选中文件
+        function batchDownloadFiles() {
+            const selectedFileIds = getSelectedFileIds();
+            if (selectedFileIds.length === 0) return;
+
+            showLoading();
+            let downloadCount = 0;
+
+            resetSelectionStatus();
+            showToast('info',`已触发 ${selectedFileIds.length} 个文件的下载，请查收浏览器下载栏！`);
+            
+            // 简单实现：逐个下载
+            selectedFileIds.forEach((fileId, index) => {
+                // 延迟下载，避免浏览器限制
+                setTimeout(() => {
+                    // 先获取文件信息以获取文件名
+                    const fileCard = document.querySelector(`.file-card[data-file-id="${fileId}"]`);
+                    const fileName = fileCard ? fileCard.querySelector('.file-name').textContent.trim() : 'file';
+                
+                    // 使用已有的预览接口获取文件URL并下载
+                    fetch('api/server.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'viewFile',
+                            fileId: fileId
+                        })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        downloadCount++;
+                        if (data.success) {
+                            const a = document.createElement('a');
+                            a.href = data.content;
+                            a.download = fileName;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                        }else {
+                            console.error(`下载${fileName}失败：${data.message}`);
+                            showToast('warning',`文件 ${fileName} 下载失败：${data.message}`);
+                        }
+                        if (downloadCount >= selectedFileIds.length) {
+                            hideLoading();
+                            showToast('success',`所有选中文件已下载，共触发 ${downloadCount} 个文件的下载`);
+                            resetSelectionStatus();
+                        }
+                    })
+                    .catch(err => {
+                        downloadCount++;
+                        console.error('下载失败：', err);
+                        if(downloadCount >= selectedFileIds.length) {
+                            hideLoading();
+                            showToast('warning',`部分文件下载失败，已触发 ${downloadCount} 个文件的下载`);
+                            resetSelectionStatus();
+                        }
+                    });
+                },index * 1000); // 每个文件间隔1秒下载
+            });
+        }
+        // ========== 重置所有选中状态（核心函数） ==========
+        function resetSelectionStatus() {
+            // 1. 取消全选框选中
+            const selectAllCheckbox = document.getElementById('selectAll');
+            selectAllCheckbox.checked = false;
+
+            // 2. 取消所有文件复选框选中，并移除卡片高亮样式
+            const allFileCheckboxes = document.querySelectorAll('.file-checkbox');
+            allFileCheckboxes.forEach(checkbox => {
+                checkbox.checked = false;
+                const fileCard = checkbox.closest('.file-card');
+                fileCard.classList.remove('selected'); // 移除选中样式
+            });
+
+            // 3. 更新全局选中状态，让批量操作栏自动隐藏
+            updateSelectionStatus();
+            
+        }
+        function removeFileFromCache(fileName, fileSize) {
+            uploadedFiles = uploadedFiles.filter(item => 
+                !(item.name === fileName && item.size === fileSize)
+            );
+        }
+        // 生成文件唯一标识
+        function generateFileHash(file) {
+            return `${file.name}-${file.size}-${file.lastModified}`;
+        }
+        // 请求合并分片
+        function mergeChunks(fileId, fileName, fileHash, totalChunks) {
+            if (!uploadTasks.has(fileId)) {
+                return;
+            }
+            updateProgressStatus(fileId, 'merging', '合并分片中...', 100);
+            fetch('api/server.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'mergeChunks',
+                    fileId: fileHash,
+                    fileName: fileName,
+                    totalChunks: totalChunks
+                })
+            })
+            // 第一步：先读取文本（关键！）
+            .then(res => res.text())
+            .then(text => {
+                if (!uploadTasks.has(fileId)) {
+                    return;
+                }
+                try {
+                    const data = JSON.parse(text);
+                    if (data.success) {
+                        updateProgressStatus(fileId, 'success');
+                        fetchAndUpdateFileList();
+                        initStorageInfo();
+                    } else {
+                        updateProgressStatus(fileId, 'error', data.message || '合并分片失败');
+                    }
+                } catch (e) {
+                    // 捕获非JSON响应
+                    console.error('服务器返回非JSON响应:', text);
+                    updateProgressStatus(fileId, 'error', '服务器内部错误（非JSON响应）');
+                }
+            })
+            .catch(err => {
+                hideLoading();
+                console.error('合并请求详细错误:', err);
+                updateProgressStatus(fileId, 'error', `合并请求失败: ${err.message}`);
+            });
+        }
+
+        window.addEventListener('load', () => {
+            initProgressPanel();
+            // 为上传按钮添加点击前检查
+            document.querySelector('.upload-btn').addEventListener('click', (e) => {
+                const filesLoaded = document.body.dataset.filesLoaded === "true";
+                if (!filesLoaded) {
+                    e.preventDefault();
+                    showToast('info','文件列表正在加载中，请稍候再试');
+                    return false;
+                }
+            });
+        });
+
+        // 处理文件查看
+        function handleViewFile(fileId, fileName) {
+            showLoading();
+            fetch('api/server.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'viewFile',
+                    fileId: fileId
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                hideLoading();
+                if (data.success) {
+                    viewModalTitle.textContent = `文件预览：${fileName}`;
+                    
+                    // 获取文件扩展名
+                    const ext = fileName.split('.').pop().toLowerCase();
+                    const fileInfo = `
+                        <div class="preview-controls">
+                            <div class="file-info">
+                                大小: ${formatSize(currentPreviewFile.size)} | 
+                                修改时间: ${formatDate(currentPreviewFile.mtime)}
+                            </div>
+                            <div class="preview-actions">
+                                <a href="${ext.match(/^(txt|html|css|js|php|json|xml|md|csv)$/) ? 'data:text/plain;charset=utf-8,' + encodeURIComponent(data.content) : data.content}" 
+                                   download="${fileName}" 
+                                   class="download-btn">
+                                    <button>下载文件</button>
+                                </a>
+                            </div>
+                        </div>
+                    `;
+
+                    // 根据文件类型渲染预览
+                    if (['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tif', 'tiff', 
+                   'psd', 'ai', 'eps', 'raw', 'cr2', 'nef', 'orf', 'sr2', 'heic', 'heif',
+                   'ppm', 'pgm', 'pbm', 'pnm', 'webp', 'avif', 'jfif', 'pjpeg', 'pjp'].includes(ext)) {
+                        previewContent.innerHTML = `${fileInfo}<img src="${data.content}" style="max-width: 100%; max-height: calc(100% - 50px); display: block; margin: 0 auto;">`;
+                    } else if (['mp4', 'webm', 'ogg', 'avi', 'mov', 'mkv', 'flv', 'wmv', 'rmvb', 'rm',
+                   'mpeg', 'mpg', 'm4v', '3gp', '3g2', 'ts', 'mts', 'm2ts', 'vob', 'ogv',
+                   'f4v', 'asf', 'divx', 'xvid', 'mpe', 'mpv', 'mxf'].includes(ext)) {
+                        previewContent.innerHTML = `${fileInfo}<video controls style="width: 100%; height: calc(100% - 50px);">
+                            <source src="${data.content}" type="video/${ext}">
+                            您的浏览器不支持该视频格式
+                        </video>`;
+                    } else if (['mp3', 'wav', 'ogg', 'flac', 'aac', 'wma', 'm4a', 'ape', 'acc', 'mid',
+                   'midi', 'amr', 'awb', 'mp2', 'mp1', 'oga', 'opus', 'ra', 'ram',
+                   'dts', 'ac3', 'wavpack', 'wv', 'aiff', 'aif', 'aifc', 'dsf', 'dff', 'tak'].includes(ext)) {
+                        previewContent.innerHTML = `${fileInfo}<audio controls style="width: 100%; margin-top: 20px;">
+                            <source src="${data.content}" type="audio/${ext}">
+                            您的浏览器不支持该音频格式
+                        </audio>`;
+                    } else if (['pdf'].includes(ext)) {
+                        previewContent.innerHTML = `${fileInfo}<iframe src="${data.content}" style="width: 100%; height: calc(100% - 50px); border: none;"></iframe>`;
+                    } else if (['txt', 'csv', 'json', 'xml', 'md', 'markdown', 'log', 'ini', 'conf', 'bat',
+                   'sh', 'php', 'html', 'htm', 'css', 'js', 'py', 'java', 'c', 'cpp', 'h', 'hpp',
+                   'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp',
+                   'rtf', 'wps', 'et', 'dps', 'epub', 'mobi', 'azw', 'azw3', 'fb2'].includes(ext)) {
+                        // 对代码文件添加语法高亮提示
+                        const isCodeFile = ['html', 'css', 'js', 'php', 'json', 'xml'].includes(ext);
+                        previewContent.innerHTML = `${fileInfo}<pre style="white-space: pre-wrap; word-break: break-all; ${isCodeFile ? 'font-family: monospace;' : ''}">${escapeHtml(data.content)}</pre>`;
+                    } else {
+                        previewContent.innerHTML = `${fileInfo}<div style="text-align: center; padding: 50px 0;">
+                            <p style="margin-bottom: 20px;">该文件类型不支持在线预览</p>
+                            <a href="${data.content}" target="_blank" style="display: inline-block; padding: 10px 20px; background: #3498db; color: white; text-decoration: none; border-radius: 4px;">
+                                下载查看
+                            </a>
+                        </div>`;
+                    }
+                    
+                    openModal(viewModal);
+                } else {
+                    showToast('warning','预览文件失败：' + data.message);
+                }
+            })
+            .catch(err => {
+                hideLoading();
+                console.error('预览文件失败：', err);
+                showToast('warning','文件预览失败，请重试');
+            });
+        }
+
+        // 打开重命名模态框
+        function handleOpenRenameModal(fileId, fileName) {
+            renameFilePath.value = fileId; // 存储fileId而不是path
+            newFileName.value = fileName;
+            openModal(renameModal);
+            newFileName.focus();
+            // 选中文件名（不包括扩展名）
+            const extIndex = fileName.lastIndexOf('.');
+            if (extIndex > 0) {
+                newFileName.setSelectionRange(0, extIndex);
+            } else {
+                newFileName.select();
+            }
+        }
+
+        // 处理重命名
+        function handleRename() {
+            const fileId = renameFilePath.value;
+            const newName = newFileName.value.trim();
+
+            if (!newName) {
+                showToast('info','请输入新文件名');
+                return;
+            }
+
+            // 检查文件名是否包含非法字符
+            if (/[\\/:*?"<>|]/.test(newName)) {
+                showToast('warning','文件名不能包含 \\ / : * ? " < > | 这些字符');
+                return;
+            }
+
+            showLoading();
+            fetch('api/server.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'renameFile',
+                    fileId: fileId,
+                    newName: newName
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                hideLoading();
+                if (data.success) {
+                    showToast('success','重命名成功');
+                    closeModal(renameModal);
+                    renameForm.reset();
+                    fetchAndUpdateFileList();
+                } else {
+                    showToast('error','重命名失败：' + data.message);
+                }
+            })
+            .catch(err => {
+                hideLoading();
+                console.error('重命名失败：', err);
+                showToast('error','文件重命名失败，请重试');
+            });
+        }
+
+        // 处理文件删除
+        function handleDeleteFile(fileId) {
+            const fileCard = document.querySelector(`.file-card[data-file-id="${fileId}"]`);
+            const fileName = fileCard ? fileCard.querySelector('.file-name').textContent.trim() : '';
+            const fileSizeText = fileCard ? fileCard.querySelector('.file-meta span:first-child').textContent.trim() : '';
+            const fileSize = parseSizeToBytes(fileSizeText);
+            
+            showLoading();
+            fetch('api/server.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'deleteFile',
+                    fileId: fileId
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                hideLoading();
+                if (data.success) {
+                    showToast('success','删除成功');
+                    if (fileName && fileSize) {
+                        removeFileFromCache(fileName, fileSize);
+                    }
+                    fetchAndUpdateFileList();
+                    initStorageInfo(); // 更新存储信息
+                } else {
+                    showToast('error','删除失败：' + data.message);
+                }
+            })
+            .catch(err => {
+                hideLoading();
+                console.error('删除失败：', err);
+                showToast('error','文件删除失败，请重试');
+            });
+        }
+
+        // 工具函数：格式化文件大小
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+            return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+        }
+
+        // 工具函数：格式化日期
+        // function formatDate(timestamp) {
+        //     const date = new Date(timestamp * 1000);
+        //     return date.toLocaleString('zh-CN', {
+        //         year: 'numeric',
+        //         month: '2-digit',
+        //         day: '2-digit',
+        //         hour: '2-digit',
+        //         minute: '2-digit',
+        //         second: '2-digit'
+        //     });
+        // }
+        // 工具函数：格式化日期
+        function formatDate(timestamp) {
+            // 使用中国时区进行格式化，确保与筛选逻辑一致
+            const date = new Date(timestamp * 1000);
+            return date.toLocaleString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                timeZone: 'Asia/Shanghai'  // 明确指定时区
+            });
+        }
+        // 工具函数：HTML转义
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // 显示加载中
+        function showLoading() {
+            loading.style.display = 'flex';
+            // 使用setTimeout确保动画能正常触发
+            setTimeout(() => loading.classList.add('show'), 10);
+        }
+
+        // 隐藏加载中
+        function hideLoading() {
+            loading.classList.remove('show');
+            setTimeout(() => loading.style.display = 'none', 300);
+        }
+
+        // 打开模态框
+        function openModal(modal) {
+            modal.style.display = 'flex';
+            // 使用setTimeout确保动画能正常触发
+            setTimeout(() => modal.classList.add('show'), 10);
+            document.body.style.overflow = 'hidden'; // 防止背景滚动
+        }
+
+        // 关闭模态框
+        function closeModal(modal) {
+            modal.classList.remove('show');
+            setTimeout(() => {
+                modal.style.display = 'none';
+                document.body.style.overflow = ''; // 恢复背景滚动
+            }, 300);
+        }
+    </script>
+</body>
+</html>
