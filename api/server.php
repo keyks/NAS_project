@@ -237,10 +237,6 @@ function listFiles($data) {
     $category = $data['category'] ?? 'all';
     $targetDate = $data['date'] ?? '';
     $keyword = $data['keyword'] ?? '';
-    $sort = strtolower($data['sort'] ?? 'desc'); // asc | desc
-    if (!in_array($sort, ['asc', 'desc'], true)) {
-        $sort = 'desc';
-    }
     $files = [];
 
     // 清理无效的ID映射
@@ -311,11 +307,8 @@ function listFiles($data) {
     }
 
     // 按修改时间排序（最新在前）
-    usort($files, function($a, $b) use ($sort) {
-        if ($sort === 'asc') {
-            return $a['mtime'] <=> $b['mtime'];
-        }
-        return $b['mtime'] <=> $a['mtime'];
+    usort($files, function($a, $b) {
+        return $b['mtime'] - $a['mtime'];
     });
 
     echo json_encode(['success' => true, 'files' => $files]);

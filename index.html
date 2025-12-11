@@ -19,9 +19,6 @@
         .date-filter { padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
         .upload-btn { padding: 10px 20px; background: #2ecc71; color: white; border: none; border-radius: 4px; cursor: pointer; transition: background 0.2s; }
         .upload-btn:hover { background: #27ae60; }
-        .sort-group { display: flex; gap: 8px; align-items: center; }
-        .sort-btn { padding: 8px 12px; background: #fff; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; transition: all 0.2s; font-size: 12px; }
-        .sort-btn.active { background: #3498db; color: #fff; border-color: #3498db; }
         #file-upload { display: none; }
         .category-tabs { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
         .tab-btn { padding: 8px 16px; background: white; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; transition: all 0.2s; }
@@ -561,6 +558,35 @@
             color: #ff4d4f;
             background-color: #f5f5f5;
         }
+        /* 音乐搜索弹窗特殊样式 */
+        #music-modal .modal-content {
+            width: 95%;
+            max-width: 1200px;
+            /* 根据设备自动调整高度 */
+            height: 90vh;
+            max-height: none;
+        }
+
+        #music-content {
+            height: calc(90vh - 60px);
+        }
+
+        /* 响应式调整 */
+        @media (max-width: 768px) {
+            #music-modal .modal-content {
+                width: 100%;
+                height: 100vh;
+                border-radius: 0;
+            }
+            
+            #music-content {
+                height: calc(100vh - 60px);
+            }
+        }
+        @keyframes squareRotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -589,10 +615,6 @@
         <div class="search-bar">
             <input type="text" class="search-input" placeholder="搜索文件名..." id="search-input">
             <input type="date" class="date-filter" id="date-filter">
-            <div class="sort-group" aria-label="时间线排序">
-                <button class="sort-btn active" data-sort="desc">时间降序</button>
-                <button class="sort-btn" data-sort="asc">时间升序</button>
-            </div>
             <label for="file-upload" class="upload-btn">上传文件</label>
             <input type="file" id="file-upload" multiple>
         </div>
@@ -605,6 +627,23 @@
             <button class="tab-btn" data-category="音乐">音乐文件</button>
             <button class="tab-btn" data-category="压缩包">压缩文件</button>
             <button class="tab-btn" data-category="其他">其他文件</button>
+            <button class="upload-btn" id="musicSearchBtn" style="background: #9b59b6;">在线音乐</button>
+        </div>
+        <div class="modal" id="music-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title">在线音乐听歌</h2>
+                    <div id="music-loading" style="margin: 0; color: #666; font-size: 14px; display: none; align-items: center; gap: 6px;">
+                        <!-- 小型方块旋转动画（内联样式实现，不占额外空间） -->
+                        <span style="display: inline-block; width: 8px; height: 8px; background: #666; animation: squareRotate 1.2s infinite linear; transform-origin: center;"></span>
+                        <span>正在加载音乐资源...（先搜索喜欢的歌曲播放吧！q(≧▽≦q)）</span>
+                    </div>
+                    <span class="close-modal" id="close-music-modal">&times;</span>
+                </div>
+                <div class="preview-content" id="music-content" style="padding: 0;">
+                    <!-- iframe将通过JS动态创建 -->
+                </div>
+            </div>
         </div>
         <!-- 批量操作栏 -->
         <div class="batch-actions" id="batchActions">
@@ -693,7 +732,6 @@
         let currentCategory = 'all';
         let currentDate = '';
         let searchKeyword = '';
-        let currentSort = 'desc';
         let currentPreviewFile = { fileId: '', name: '', size: 0, mtime: 0 };
         // 弹窗队列管理 - 核心新增
         const dialogQueue = [];
@@ -706,7 +744,6 @@
         const dateFilter = document.getElementById('date-filter');
         const tabBtns = document.querySelectorAll('.tab-btn');
         const fileUpload = document.getElementById('file-upload');
-        const sortBtns = document.querySelectorAll('.sort-btn');
         const viewModal = document.getElementById('view-modal');
         const previewContent = document.getElementById('preview-content');
         const viewModalTitle = document.getElementById('view-modal-title');
@@ -721,6 +758,11 @@
         const usedStorageEl = document.getElementById('used-storage');
         const freeStorageEl = document.getElementById('free-storage');
         const storageProgressEl = document.getElementById('storage-progress');
+        
+        const musicModal = document.getElementById('music-modal');
+        const musicSearchBtn = document.getElementById('musicSearchBtn');
+        const closeMusicModal = document.getElementById('close-music-modal');
+
         // 批量操作事件监听
         document.getElementById('selectAll').addEventListener('change', toggleSelectAll);
         document.getElementById('batchDeleteBtn').addEventListener('click', batchDeleteFiles);
@@ -731,7 +773,58 @@
             closeModal(viewModal);
             previewContent.innerHTML = '';
         });
-
+        // 音乐搜索按钮点击事件
+        musicSearchBtn.addEventListener('click', () => {
+            openModal(musicModal);
+            const musicContent = document.getElementById('music-content');
+            const musicLoading = document.getElementById('music-loading');
+            musicLoading.style.display = 'flex';
+            // 检查iframe是否已存在，不存在则创建
+            let musicIframe = document.getElementById('music-iframe');
+            if (!musicIframe) {
+                musicIframe = document.createElement('iframe');
+                musicIframe.id = 'music-iframe';
+                musicIframe.src = "https://www.qqmp3.vip/";
+                musicIframe.style.width = "100%";
+                musicIframe.style.height = "100%";
+                musicIframe.style.border = "none";
+                musicIframe.sandbox = "allow-scripts allow-forms allow-same-origin allow-popups";
+                musicIframe.allowFullscreen = true;
+                musicIframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+                
+                // 加载完成后隐藏加载提示
+                musicIframe.onload = function() {
+                    if (musicLoading) {
+                        musicLoading.style.display = 'none';
+                    }
+                };
+                // 加载失败：更新提示文本（保留红色方块标识）
+                musicIframe.onerror = function() {
+                    musicLoading.innerHTML = '<span style="display: inline-block; width: 8px; height: 8px; background: #ff4444;"></span><span>加载失败，请重试</span>';
+                    musicLoading.style.color = "#ff4444";
+                };
+                // 添加到容器
+                musicContent.appendChild(musicIframe);
+            } else {
+                // 如果已存在，隐藏加载提示
+                if (musicLoading) {
+                    musicLoading.style.display = 'none';
+                }
+            }
+        });
+        // 关闭弹窗重置加载状态
+        document.getElementById('close-music-modal').addEventListener('click', () => {
+            const musicLoading = document.getElementById('music-loading');
+            musicLoading.style.display = 'none';
+            // 恢复原始加载提示结构
+            musicLoading.innerHTML = '<span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #666; animation: dotPulse 1.4s infinite ease-in-out both;"></span><span>正在加载音乐资源...</span>';
+            musicLoading.style.color = "#666";
+            closeModal(musicModal);
+        });
+        // 关闭音乐搜索弹窗
+        closeMusicModal.addEventListener('click', () => {
+            closeModal(musicModal);
+        });
         // 初始化
         window.onload = () => {
             initStorageInfo();
@@ -924,16 +1017,6 @@
                 loadFiles();
             });
 
-            // 时间线排序
-            sortBtns.forEach(btn => {
-                btn.addEventListener('click', () => {
-                    sortBtns.forEach(b => b.classList.remove('active'));
-                    btn.classList.add('active');
-                    currentSort = btn.dataset.sort || 'desc';
-                    loadFiles();
-                });
-            });
-
             // 文件上传
             fileUpload.addEventListener('change', handleFileUpload);
 
@@ -965,6 +1048,9 @@
                     closeModal(renameModal);
                     renameForm.reset();
                 }
+                if (e.target === musicModal) {
+                    closeModal(musicModal);
+                }
             });
 
             // 键盘ESC关闭模态框
@@ -987,6 +1073,9 @@
                     if (renameModal.classList.contains('show')) {
                         closeModal(renameModal);
                         renameForm.reset();
+                    }
+                    if (musicModal.classList.contains('show')) {
+                        closeModal(musicModal);
                     }
                 }
             });
@@ -1031,8 +1120,7 @@
                     action: 'listFiles',
                     category: currentCategory,
                     date: currentDate,
-                    keyword: searchKeyword,
-                    sort: currentSort
+                    keyword: searchKeyword
                 })
             })
             .then(res => res.json())
@@ -1066,8 +1154,7 @@
                     action: 'listFiles',
                     category: currentCategory,
                     date: currentDate,
-                    keyword: searchKeyword,
-                    sort: currentSort
+                    keyword: searchKeyword
                 })
             })
             .then(res => {
