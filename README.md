@@ -5,7 +5,7 @@
 [![GitHub forks](https://img.shields.io/github/forks/keyks/NAS_project?style=flat-square)](https://github.com/keyks/NAS_project)
 [![PHP Version](https://img.shields.io/badge/PHP-7.0%2B-blue?style=flat-square)](https://www.php.net/)
 [![Platform](https://img.shields.io/badge/平台-Windows%20%7C%20Linux%20%7C%20Android-green?style=flat-square)](https://github.com/keyks/NAS_project)
-[![License](https://img.shields.io/github/license/keyks/NAS_project?style=flat-square)](LICENSE)
+[![License](https://github.com/keyks/NAS_project/blob/main/LICENSE)](LICENSE)
 
 ---
 
@@ -62,7 +62,8 @@ NAS_project/
 │   └── temp/                # 分片上传临时目录（自动清理）
 └── README.md                # 项目说明文档
 ```
-
+## 效果图展示
+![效果图展示](img/file_list.png)
 ## 🚀 部署教程
 
 ### 1. 环境要求
