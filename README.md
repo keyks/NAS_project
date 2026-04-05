@@ -5,7 +5,7 @@
 [![GitHub forks](https://img.shields.io/github/forks/keyks/NAS_project?style=flat-square)](https://github.com/keyks/NAS_project)
 [![PHP Version](https://img.shields.io/badge/PHP-7.0%2B-blue?style=flat-square)](https://www.php.net/)
 [![Platform](https://img.shields.io/badge/平台-Windows%20%7C%20Linux%20%7C%20Android-green?style=flat-square)](https://github.com/keyks/NAS_project)
-[![License](https://github.com/keyks/NAS_project/blob/main/LICENSE)](LICENSE)
+[![License](https://img.shields.io/github/license/keyks/NAS_project?style=flat-square)](LICENSE)
 
 ---
 
@@ -62,8 +62,17 @@ NAS_project/
 │   └── temp/                # 分片上传临时目录（自动清理）
 └── README.md                # 项目说明文档
 ```
-## 效果图展示
+## 🖼️效果图展示
+
+### 1.成功打开进入后，会展示文件列表页面，用户可以在页面上查看、上传、删除、重命名文件。
 ![效果图展示](img/file_list.png)
+### 2.上传成功后，文件会自动分类存储在对应的目录下。
+![效果图展示](img/upload_demo.png)
+### 3.音乐在线按钮点击后，会跳转到音乐在线播放页面。
+![效果图展示](img/music_online.png)
+
+---
+
 ## 🚀 部署教程
 
 ### 1. 环境要求
