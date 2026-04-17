@@ -24,13 +24,41 @@
         .tab-btn { padding: 8px 16px; background: white; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; transition: all 0.2s; }
         .tab-btn.active { background: #3498db; color: white; border-color: #3498db; }
         .file-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }
-        .file-card { background: white; border-radius: 8px; padding: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: transform 0.2s, box-shadow 0.2s; }
-        .file-card:hover { transform: translateY(-5px); box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        .file-card {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: 
+                transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.2s ease;
+            will-change: transform, box-shadow;     /* 关键：提升性能 */
+            backface-visibility: hidden;            /* 防止闪烁 */
+            position: relative;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .file-card:hover {
+            transform: translateY(-6px) scale(1.02);   /* 更丝滑的悬停效果 */
+            box-shadow: 0 12px 25px rgba(0,0,0,0.12);
+        }
         .file-icon { font-size: 90px; text-align: center; margin-bottom: 10px; color: #3498db; }
         .file-name { font-size: 14px; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .file-meta { font-size: 12px; color: #7f8c8d; margin-bottom: 10px; }
         .file-actions { display: flex; justify-content: space-around; }
-        .action-btn { padding: 5px 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; transition: opacity 0.2s; }
+        .action-btn {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1); /* 更快响应 */
+            active {
+                transform: scale(0.95);
+            }
+        }
         .action-btn:hover { opacity: 0.9; transform: scale(1.05); }
         .view-btn { background: #3498db; color: white; }
         .rename-btn { background: #f39c12; color: white; }
@@ -291,16 +319,24 @@
             color: #1677ff;
         }
         /* 批量操作栏样式 */
-        .batch-actions { 
-            display: none; 
-            margin: 15px 0; 
-            padding: 10px; 
-            background: #f8f9fa; 
+        .batch-actions {
+            display: none;
+            margin: 15px 0;
+            padding: 10px;
+            background: #f8f9fa;
             border-radius: 4px;
             gap: 10px;
             align-items: center;
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .batch-actions.visible { display: flex; }
+
+        .batch-actions.visible {
+            display: flex;
+            opacity: 1;
+            transform: translateY(0);
+        }
         .batch-btn { 
             padding: 8px 16px; 
             border: none; 
@@ -339,6 +375,23 @@
         /* 文件卡片复选框样式补充 */
         .file-card {
             position: relative;
+            cursor: pointer;                    /* 增加手型指针 */
+            user-select: none;                  /* 防止文字被选中 */
+        }
+        .file-card.selected {
+            border: 2px solid #3498db;
+            background: #f8fbff;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .file-card .action-btn {
+            position: relative;
+            z-index: 2;                         /* 确保按钮在最上层 */
+            pointer-events: auto;               /* 按钮正常响应点击 */
+        }
+
+        .file-card .file-checkbox {
+            pointer-events: auto;               /* 复选框本身正常响应 */
+            z-index: 3;
         }
         .file-checkbox:checked + .file-icon {
             color: #3498db;
@@ -587,6 +640,94 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        /* 进度条增强样式 */
+        .progress-speed {
+        font-size: 12px;
+        color: #666;
+        margin-left: 8px;
+        }
+        .progress-remaining {
+        font-size: 12px;
+        color: #999;
+        margin-top: 2px;
+        }
+        /* 下载进度专用样式 */
+        .download-progress-panel {
+        position: fixed;
+        right: 20px;
+        bottom: 90px;
+        width: 320px;
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 9998;
+        overflow: hidden;
+        transition: all 0.3s ease;
+        }
+        .download-progress-item {
+        padding: 10px 16px;
+        border-bottom: 1px solid #f0f0f0;
+        }
+        .download-progress-item:last-child {
+        border-bottom: none;
+        }
+        /* 代码预览容器 */
+        .code-view-container {
+            display: flex;
+            background: #fff;
+            border-radius: 6px;
+            overflow: hidden;
+            max-height: 75vh;
+            font-family: Consolas, 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            tab-size: 4;
+        }
+        /* 行号 */
+        .line-numbers {
+            padding: 10px 4px;
+            background: #f7f7f7;
+            color: #999;
+            user-select: none;
+            min-width: 50px;
+            text-align: right;
+            border-right: 1px solid #eee;
+        }
+        .line-num {
+            height: 1.6em;
+        }
+        /* 代码内容 */
+        .code-content {
+            flex: 1;
+            padding: 10px 12px;
+            margin: 0;
+            overflow-x: auto;
+            white-space: pre;
+            color: #2d2d2d;
+        }
+        .code-line {
+            height: 1.6em;
+        }
+        /* 语法高亮颜色 */
+        .cl-key { color: #569cd6; font-weight: 500; }
+        .cl-str { color: #ce9178; }
+        .cl-num { color: #b5cea8; }
+        .cl-comment { color: #6a9955; }
+        .cl-tag { color: #569cd6; }
+        /* 预览按钮条 */
+        .preview-actions button {
+            padding: 6px 10px;
+            margin: 0 4px;
+            border: 1px solid #ddd;
+            background: #f9f9f9;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .preview-actions button:hover {
+            background: #e6f0ff;
+            border-color: #99c2ff;
+        }
     </style>
 </head>
 <body>
@@ -675,6 +816,16 @@
                 </div>
                 <div class="progress-list" id="progressList"></div>
             </div>
+        </div>
+        <!-- 下载进度悬浮弹窗（新增） -->
+        <div id="downloadProgressPanel" class="download-progress-panel" style="display: none;">
+        <div class="progress-content">
+            <div class="progress-header">
+            <h3>文件下载进度</h3>
+            <button class="progress-close" onclick="closeDownloadPanel()">×</button>
+            </div>
+            <div class="progress-list" id="downloadProgressList"></div>
+        </div>
         </div>
         <div class="no-files" id="no-files" style="display: none;">
             暂无文件数据
@@ -767,7 +918,7 @@
         document.getElementById('selectAll').addEventListener('change', toggleSelectAll);
         document.getElementById('batchDeleteBtn').addEventListener('click', batchDeleteFiles);
         document.getElementById('batchDownloadBtn').addEventListener('click', batchDownloadFiles);
-
+        
         // 关闭查看模态框
         closeViewModal.addEventListener('click', () => {
             closeModal(viewModal);
@@ -817,7 +968,10 @@
             const musicLoading = document.getElementById('music-loading');
             musicLoading.style.display = 'none';
             // 恢复原始加载提示结构
-            musicLoading.innerHTML = '<span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #666; animation: dotPulse 1.4s infinite ease-in-out both;"></span><span>正在加载音乐资源...</span>';
+            musicLoading.innerHTML = `
+                <span style="display:inline-block;width:8px;height:8px;background:#666;animation:squareRotate 1.2s infinite linear;transform-origin:center;"></span>
+                <span>正在加载音乐资源...（先搜索喜欢的歌曲播放吧！q(≧▽≦q)）</span>
+            `;
             musicLoading.style.color = "#666";
             closeModal(musicModal);
         });
@@ -1052,7 +1206,38 @@
                     closeModal(musicModal);
                 }
             });
+            // 复选框状态变化监听
+            document.addEventListener('change', function(e) {
+                if (e.target.classList.contains('file-checkbox')) {
+                    const card = e.target.closest('.file-card');
+                    if (card) {
+                        card.classList.toggle('selected', e.target.checked);
+                    }
+                    updateSelectionStatus();
+                }
+            });
+            document.addEventListener('click', function(e) {
+                const card = e.target.closest('.file-card');
+                if (!card) return;
 
+                const checkbox = card.querySelector('.file-checkbox');
+                if (!checkbox) return;
+
+                // 判断是否点击了操作按钮
+                const isActionBtn = e.target.closest('.action-btn');
+                if (isActionBtn) {
+                    return; // 点击按钮时不切换选中状态，只执行按钮功能
+                }
+
+                // 判断是否点击了复选框本身（避免重复触发）
+                const isCheckboxClick = e.target.classList.contains('file-checkbox');
+
+                // 点击卡片空白处、文件名、图标区域时才切换选中状态
+                if (!isCheckboxClick) {
+                    checkbox.checked = !checkbox.checked;
+                    checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            });
             // 键盘ESC关闭模态框
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
@@ -1242,9 +1427,10 @@
                     <input type="checkbox" class="file-checkbox" data-file-id="${file.fileId}">
                     <!-- 新增图片预览元素 - 使用API获取图片路径 -->
                     ${file.category === '图片' ? `
-                    <img class="file-preview" data-file-id="${file.fileId}"
-                     alt="${file.name}"
-                    onerror="this.style.display='none'">  <!-- 增加错误处理 -->
+                    <img class="file-preview" 
+                        src="/uploads/${file.category}/${encodeURIComponent(file.name)}"
+                        alt="${file.name}" 
+                        onerror="this.style.display='none';this.nextElementSibling.style.display='block';">
                     ` : ''}
                     <div class="file-icon">${icon}</div>
                     <div class="file-name">${file.name}</div>
@@ -1259,6 +1445,19 @@
                     </div>
                 `;
                 
+                fileCard.style.opacity = '0';
+                fileCard.style.transform = 'translateY(15px)';
+
+                fileListEl.appendChild(fileCard);
+
+                // 使用 requestAnimationFrame + setTimeout 实现错峰淡入，更丝滑
+                requestAnimationFrame(() => {
+                    setTimeout(() => {
+                        fileCard.style.transition = 'opacity 0.35s ease, transform 0.35s cubic-bezier(0.25, 0.1, 0.25, 1)';
+                        fileCard.style.opacity = '1';
+                        fileCard.style.transform = 'translateY(0)';
+                    }, 10);
+                });
                 // 如果是图片文件，加载预览图
                 if (file.category === '图片') {
                     const previewImg = fileCard.querySelector('.file-preview');
@@ -1280,25 +1479,6 @@
                         console.error('加载图片预览失败:', err);
                     });
                 }
-                
-                // 绑定复选框事件
-                fileCard.addEventListener('click', (e) => {
-                    // 排除按钮区域：点击按钮时不切换复选框
-                    if (e.target.closest('.action-btn')) {
-                        return; // 终止函数，不触发复选框切换
-                    }
-                    const checkbox = fileCard.querySelector('.file-checkbox');
-                    // 切换复选框状态
-                    checkbox.checked = !checkbox.checked;
-                    // 同步卡片选中样式
-                    if (checkbox.checked) {
-                        fileCard.classList.add('selected');
-                    } else {
-                        fileCard.classList.remove('selected');
-                    }
-                    // 更新全局选中状态（批量操作栏、全选框、选中数量）
-                    updateSelectionStatus();
-                });
                 // 绑定按钮事件
                 fileCard.querySelector('.view-btn').addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -1329,8 +1509,6 @@
                         }
                     });
                 });
-
-                fileListEl.appendChild(fileCard);
             });
         }
         // 存储上传任务映射
@@ -1386,17 +1564,165 @@
             progressList.appendChild(item);
             return item;
         }
-        // 更新文件上传进度
-        function updateProgress(fileId, percent) {
+        // 更新文件上传进度 + 实时速度 + 剩余时间
+        function updateProgress(fileId, percent, speed = 0) {
             const item = document.getElementById(`progress-${fileId}`);
             if (!item) return;
             
             const bar = item.querySelector('.progress-bar');
             const percentText = item.querySelector('.progress-percent');
-            percent = Math.min(100, Math.max(0, percent));
+            const speedEl = item.querySelector('.progress-speed') || document.createElement('div');
+            const remainingEl = item.querySelector('.progress-remaining') || document.createElement('div');
             
+            percent = Math.min(100, Math.max(0, percent));
             bar.style.width = `${percent}%`;
             percentText.textContent = `${percent.toFixed(1)}%`;
+
+            // 显示速度
+            speedEl.className = 'progress-speed';
+            speedEl.textContent = speed > 0 ? `${formatSpeed(speed)}` : '';
+            
+            // 计算剩余时间
+            let remainingText = '';
+            if (speed > 0 && percent < 100) {
+                const remainingBytes = (1 - percent / 100) * (uploadTasks.get(fileId)?.totalSize || 0);
+                const remainingSeconds = remainingBytes / speed;
+                remainingText = remainingSeconds > 1 ? `剩余 ${Math.round(remainingSeconds)} 秒` : '即将完成';
+            }
+            remainingEl.className = 'progress-remaining';
+            remainingEl.textContent = remainingText;
+
+            // 插入DOM
+            if (!item.querySelector('.progress-speed')) {
+                const bottom = item.querySelector('.progress-bottom');
+                bottom.appendChild(speedEl);
+                bottom.appendChild(remainingEl);
+            }
+            }
+
+            // 速度格式化工具
+            function formatSpeed(bytesPerSecond) {
+            if (bytesPerSecond < 1024) return `${Math.round(bytesPerSecond)} B/s`;
+            if (bytesPerSecond < 1024 * 1024) return `${(bytesPerSecond / 1024).toFixed(1)} KB/s`;
+            return `${(bytesPerSecond / (1024 * 1024)).toFixed(1)} MB/s`;
+        }
+        // ======================
+        // 下载进度优化（新增）
+        // ======================
+        let downloadTasks = new Map();
+
+        // 关闭下载面板
+        function closeDownloadPanel() {
+        document.getElementById('downloadProgressPanel').style.display = 'none';
+        document.getElementById('downloadProgressList').innerHTML = '';
+        }
+
+        // 创建下载进度项
+        function createDownloadProgressItem(downloadId, fileName) {
+        const list = document.getElementById('downloadProgressList');
+        const panel = document.getElementById('downloadProgressPanel');
+        panel.style.display = 'block';
+        
+        const item = document.createElement('div');
+        item.className = 'download-progress-item';
+        item.id = `download-${downloadId}`;
+        item.innerHTML = `
+            <div class="progress-file-name">${fileName}</div>
+            <div class="progress-bar-container">
+            <div class="progress-bar" style="width:0%"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:4px;">
+            <div class="progress-percent">0%</div>
+            <div class="progress-speed"></div>
+            </div>
+            <div class="progress-remaining"></div>
+        `;
+        list.appendChild(item);
+        return item;
+        }
+
+        // 更新下载进度
+        function updateDownloadProgress(downloadId, percent, speed = 0) {
+        const item = document.getElementById(`download-${downloadId}`);
+        if (!item) return;
+        
+        const bar = item.querySelector('.progress-bar');
+        const percentText = item.querySelector('.progress-percent');
+        const speedEl = item.querySelector('.progress-speed');
+        const remainingEl = item.querySelector('.progress-remaining');
+        
+        percent = Math.min(100, percent);
+        bar.style.width = percent + '%';
+        percentText.textContent = percent.toFixed(1) + '%';
+        speedEl.textContent = speed ? formatSpeed(speed) : '';
+        
+        if (percent >= 100) {
+            speedEl.textContent = '下载完成';
+            remainingEl.textContent = '';
+            setTimeout(() => item.remove(), 2000);
+        }
+        }
+
+        // 优化后的批量下载（带进度）
+        function batchDownloadFiles() {
+        const selectedFileIds = getSelectedFileIds();
+        if (selectedFileIds.length === 0) return;
+
+        showLoading();
+        resetSelectionStatus();
+        showToast('info', `开始下载 ${selectedFileIds.length} 个文件`);
+
+        selectedFileIds.forEach((fileId, i) => {
+            setTimeout(() => {
+            const card = document.querySelector(`.file-card[data-file-id="${fileId}"]`);
+            const name = card ? card.querySelector('.file-name').textContent : 'file';
+            const downloadId = `dl-${fileId}-${Date.now()}`;
+            
+            createDownloadProgressItem(downloadId, name);
+            
+            fetch(`api/server.php`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'viewFile', fileId })
+            })
+            .then(res => {
+                const totalSize = res.headers.get('content-length') || 0;
+                const reader = res.body.getReader();
+                let loaded = 0;
+                
+                return new ReadableStream({
+                start(controller) {
+                    function push() {
+                    reader.read().then(({ done, value }) => {
+                        if (done) {
+                        controller.close();
+                        updateDownloadProgress(downloadId, 100, 0);
+                        return;
+                        }
+                        loaded += value.length;
+                        const percent = (loaded / totalSize) * 100;
+                        const speed = value.length / 0.5; // 计算速度
+                        updateDownloadProgress(downloadId, percent, speed);
+                        controller.enqueue(value);
+                        push();
+                    });
+                    }
+                    push();
+                }
+                });
+            })
+            .then(stream => new Response(stream))
+            .then(r => r.blob())
+            .then(b => {
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(b);
+                a.download = name;
+                a.click();
+            });
+            }, i * 1100);
+        });
+
+        setTimeout(hideLoading, 1500);
         }
         // 更新文件上传状态
         function updateProgressStatus(fileId, status, message = '') {
@@ -1673,17 +1999,24 @@
                 xhrRequests.push(xhr); // 存储请求
                 xhr.open('POST', 'api/server.php?action=uploadChunk', true);
                 
+                let lastLoaded = 0;
+                let lastTime = Date.now();
                 xhr.upload.addEventListener('progress', (e) => {
-                    //进度清空，回退到0%
-                    if (!uploadTasks.has(fileId)) {
-                        xhr.abort();
-                        return;
-                    }
-                    if (e.lengthComputable) {
-                        // 计算当前分片对总进度的贡献
-                        const chunkProgress = (completedChunks / totalChunks) * 100 + (e.loaded / e.total) * (100 / totalChunks);
-                        updateProgress(fileId, chunkProgress);
-                    }
+                if (!uploadTasks.has(fileId)) return;
+                if (e.lengthComputable) {
+                    const chunkProgress = (completedChunks / totalChunks) * 100 + (e.loaded / e.total) * (100 / totalChunks);
+                    
+                    // 计算速度
+                    const now = Date.now();
+                    const deltaTime = (now - lastTime) / 1000 || 0.1;
+                    const deltaLoaded = e.loaded - lastLoaded;
+                    const speed = deltaLoaded / deltaTime;
+                    
+                    lastLoaded = e.loaded;
+                    lastTime = now;
+                    
+                    updateProgress(fileId, chunkProgress, speed);
+                }
                 });
                 
                 xhr.addEventListener('load', () => {
@@ -1818,41 +2151,33 @@
         }
         // 批量操作相关函数
         function updateSelectionStatus() {
-            const checkboxes = document.querySelectorAll('.file-checkbox:checked');
-            const totalCheckboxes = document.querySelectorAll('.file-checkbox').length;
+            const checkboxes = document.querySelectorAll('.file-checkbox');
+            const checkedBoxes = document.querySelectorAll('.file-checkbox:checked');
             const selectAllCheckbox = document.getElementById('selectAll');
             const batchActions = document.getElementById('batchActions');
             const selectedCount = document.getElementById('selectedCount');
 
-            // 更新已选择数量
-            selectedCount.textContent = `已选择 ${checkboxes.length} 个文件`;
-
-            // 控制批量操作栏显示/隐藏
-            if (checkboxes.length > 0) {
-                batchActions.classList.add('visible');
-            } else {
-                batchActions.classList.remove('visible');
-            }
-
-            // 更新全选框状态
-            selectAllCheckbox.checked = checkboxes.length === totalCheckboxes && totalCheckboxes > 0;
+            const total = checkboxes.length;
+            const checked = checkedBoxes.length;
+            // 更新已选择数量文本
+            selectedCount.textContent = `已选择 ${checked} 个文件`;
+            batchActions.classList.toggle('visible', checked > 0);
+            selectAllCheckbox.checked = total > 0 && checked === total;
         }
 
         // 全选/取消全选
         function toggleSelectAll() {
-            const selectAllCheckbox = document.getElementById('selectAll');
+            const isChecked = document.getElementById('selectAll').checked;
             const checkboxes = document.querySelectorAll('.file-checkbox');
-            
+
             checkboxes.forEach(checkbox => {
-                checkbox.checked = selectAllCheckbox.checked;
-                // 更新文件卡片选中状态
-                const fileCard = checkbox.closest('.file-card');
-                if (selectAllCheckbox.checked) {
-                    fileCard.classList.add('selected');
-                } else {
-                    fileCard.classList.remove('selected');
+                checkbox.checked = isChecked;
+                const card = checkbox.closest('.file-card');
+                if (card) {
+                    card.classList.toggle('selected', isChecked);
                 }
             });
+
             updateSelectionStatus();
         }
 
@@ -2108,8 +2433,44 @@
                         </div>
                     `;
 
+                    // ======================
+                    // 文本 / 代码文件预览（高亮版）
+                    // ======================
+                    const codeTypes = [
+                        'txt', 'json', 'js', 'ts', 'html', 'css', 'php', 'py', 'java', 
+                        'c', 'cpp', 'h', 'sh', 'bash', 'xml', 'md', 'csv', 'log', 
+                        'ini', 'conf', 'gitignore', 'sql', 'yaml', 'yml', 'env'
+                    ];
+                    if (codeTypes.includes(ext)) {
+                        let rawContent = data.content || '文件内容为空';
+                        let content = escapeHtml(rawContent);
+                        let lines = rawContent.split(/\r?\n/);
+
+                        let lineNumbers = '';
+                        let codeContent = '';
+
+                        lines.forEach((line, idx) => {
+                            lineNumbers += `<div class="line-num">${idx + 1}</div>`;
+                            let escaped = escapeHtml(line);
+                            escaped = highlightSyntax(escaped, ext);
+                            codeContent += `<div class="code-line">${escaped}</div>`;
+                        });
+
+                        previewContent.innerHTML = `
+                            ${fileInfo}
+                            <div class="code-view-container" id="codeContainer">
+                                <div class="line-numbers">${lineNumbers}</div>
+                                <pre class="code-content" id="codeDisplay">${codeContent}</pre>
+                            </div>
+                        `;
+                        // 绑定功能按钮
+                        setTimeout(() => bindCodeViewerEvents(), 50);
+
+                        openModal(viewModal);
+                        return;
+                    }
                     // 根据文件类型渲染预览
-                    if (['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tif', 'tiff', 
+                    else if (['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tif', 'tiff', 
                    'psd', 'ai', 'eps', 'raw', 'cr2', 'nef', 'orf', 'sr2', 'heic', 'heif',
                    'ppm', 'pgm', 'pbm', 'pnm', 'webp', 'avif', 'jfif', 'pjpeg', 'pjp'].includes(ext)) {
                         previewContent.innerHTML = `${fileInfo}<img src="${data.content}" style="max-width: 100%; max-height: calc(100% - 50px); display: block; margin: 0 auto;">`;
@@ -2288,6 +2649,79 @@
                 timeZone: 'Asia/Shanghai'  // 明确指定时区
             });
         }
+        
+        // ==============================================
+        // 代码高亮语法解析（纯前端，无依赖）
+        // ==============================================
+        function highlightSyntax(str, lang) {
+            if (lang === 'json') {
+                str = str.replace(/"(.*?)"/g, '<span class="cl-str">"$1"</span>');
+                str = str.replace(/:\s*(.*?)(,|$)/g, ': <span class="cl-num">$1</span>$2');
+            }
+            if (['js', 'ts', 'php', 'java', 'c', 'cpp', 'py'].includes(lang)) {
+                const keywords = /\b(function|const|let|var|return|if|else|for|while|class|import|export|new|this|echo|print|public|private|protected|try|catch|finally|null|undefined|true|false)\b/g;
+                str = str.replace(keywords, '<span class="cl-key">$1</span>');
+                str = str.replace(/(".*?"|'.*?')/g, '<span class="cl-str">$1</span>');
+                str = str.replace(/(\d+)/g, '<span class="cl-num">$1</span>');
+                str = str.replace(/(\/\/.*)/g, '<span class="cl-comment">$1</span>');
+            }
+            if (lang === 'html' || lang === 'xml') {
+                str = str.replace(/(&lt;.*?&gt;)/g, '<span class="cl-tag">$1</span>');
+                str = str.replace(/(\w+)=/g, '<span class="cl-key">$1</span>=');
+                str = str.replace(/"(.*?)"/g, '<span class="cl-str">"$1"</span>');
+            }
+            if (lang === 'css') {
+                str = str.replace(/([a-zA-Z-]+)\s*:/g, '<span class="cl-key">$1</span>:');
+                str = str.replace(/#[0-9a-fA-F]+/g, '<span class="cl-num">$&</span>');
+                str = str.replace(/\{|\}/g, '<span style="color:#ff6b6b">$&</span>');
+            }
+            return str;
+        }
+
+        // ==============================================
+        // 代码预览器事件绑定（复制、主题、换行、字体大小）
+        // ==============================================
+        function bindCodeViewerEvents() {
+            const container = document.getElementById('codeContainer');
+            const display = document.getElementById('codeDisplay');
+            if (!container || !display) return;
+
+            // 复制
+            document.getElementById('btn-copy-code')?.addEventListener('click', () => {
+                const text = display.innerText;
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast('success', '复制成功！');
+                });
+            });
+
+            // 暗黑模式
+            let dark = false;
+            document.getElementById('btn-toggle-theme')?.addEventListener('click', (e) => {
+                dark = !dark;
+                container.style.background = dark ? '#1e1e1e' : '#ffffff';
+                display.style.color = dark ? '#d4d4d4' : '#2d2d2d';
+                e.target.textContent = dark ? '☀️ 明亮模式' : '🌙 暗黑模式';
+            });
+
+            // 自动换行
+            let wrap = true;
+            document.getElementById('btn-toggle-wrap')?.addEventListener('click', (e) => {
+                wrap = !wrap;
+                display.style.whiteSpace = wrap ? 'pre-wrap' : 'pre';
+                e.target.textContent = wrap ? '↩️ 自动换行' : '➡️ 不换行';
+            });
+
+            // 字体大小
+            let size = 14;
+            const updateSize = () => display.style.fontSize = size + 'px';
+            document.getElementById('btn-font-bigger')?.addEventListener('click', () => {
+                size = Math.min(size + 2, 24); updateSize();
+            });
+            document.getElementById('btn-font-smaller')?.addEventListener('click', () => {
+                size = Math.max(size - 2, 10); updateSize();
+            });
+        }
+
         // 工具函数：HTML转义
         function escapeHtml(unsafe) {
             return unsafe

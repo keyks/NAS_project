@@ -1,4 +1,36 @@
 <?php
+session_start();
+
+function sanitizeFileId($id) {
+    // 只允许字母、数字、- _ 
+    $id = preg_replace('/[^a-zA-Z0-9\-_]/', '', $id);
+    // 限制长度防止超长攻击
+    return substr($id, 0, 64);
+}
+
+$action = $_GET['action'] ?? '';
+$postData = [];
+if (empty($action)) {
+    $postData = json_decode(file_get_contents('php://input'), true);
+    $action = $postData['action'] ?? '';
+}
+
+if (!isset($_SESSION['logged_in']) && $action !== 'login') {
+    // 允许公开操作的接口（查看 + 完整上传流程）
+    $allowedPublicActions = [
+        'listFiles', 'viewFile',          // 查看
+        'checkFileExists', 'uploadChunk', // 分片上传
+        'mergeChunks', 'cleanupUpload',   // 合并 + 清理
+        'deleteFile',                      // 删除
+        'renameFile',                      // 重命名
+        'uploadFile'                      // 备用完整上传
+    ];
+    
+    if (!in_array($action, $allowedPublicActions)) {
+        echo json_encode(['success' => false, 'message' => '请先登录']);
+        exit;
+    }
+}
 header("Content-Type: application/json; charset=utf-8");
 header("Access-Control-Allow-Origin: *"); // 允许跨域（本地环境安全）
 
@@ -9,6 +41,7 @@ ob_start(); // 开启输出缓冲，防止意外输出
 // 定义根路径
 define('ROOT_PATH', realpath(__DIR__ . '/../'));
 define('UPLOAD_PATH', ROOT_PATH . '/uploads/');
+define('FILE_ID_MAP_PATH', UPLOAD_PATH . '../.file_id_map.json');
 
 // 确保上传目录存在并创建固定分类目录
 $categories = ['文件', '图片', '视频','音乐', '压缩包', '其他'];
@@ -24,9 +57,6 @@ $tempRootDir = UPLOAD_PATH . 'temp/';
 if (!is_dir($tempRootDir)) {
     mkdir($tempRootDir, 0777, true);
 }
-
-// 文件ID映射系统 - 安全存储文件路径映射
-define('FILE_ID_MAP_PATH', UPLOAD_PATH . 'temp/.file_id_map.json');
 
 /**
  * 获取或创建文件ID映射
@@ -101,7 +131,8 @@ function cleanupFileIdMap() {
     $map = getFileIdMap();
     $cleaned = false;
     foreach ($map as $id => $path) {
-        if (!file_exists($path)) {
+        $fullPath = ROOT_PATH . '/' . $path;
+        if (!file_exists($fullPath)) {
             unset($map[$id]);
             $cleaned = true;
         }
@@ -332,7 +363,7 @@ function getFileTypes() {
                    'sh', 'php', 'html', 'htm', 'css', 'js', 'py', 'java', 'c', 'cpp', 'h', 'hpp',
                    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp',
                    'rtf', 'wps', 'et', 'dps', 'epub', 'mobi', 'azw', 'azw3', 'fb2'],
-        '其他' => []
+        '其他' => ['*'] // 其他类型，匹配所有未分类的文件
     ];
 }
 /**
@@ -375,6 +406,12 @@ function cleanupUpload($data) {
  * 上传文件分片
  */
 function uploadChunk() {
+    // 在 uploadChunk() 开头立即添加文件ID验证
+    $fileId = sanitizeFileId($_POST['fileId'] ?? '');
+    if (strlen($fileId) < 8) {
+        echo json_encode(['success' => false, 'message' => '无效的 fileId']);
+        exit;
+    }
     // 检查必要参数
     if (!isset($_POST['fileId'], $_POST['chunkIndex'], $_POST['totalChunks'], $_FILES['chunk'])) {
         echo json_encode(['success' => false, 'message' => '参数不完整']);
@@ -448,6 +485,12 @@ function checkFileExists($data) {
  * 合并文件分片
  */
 function mergeChunks($data) {
+    // 在 mergeChunks() 开头立即添加文件ID验证  
+    $fileId = sanitizeFileId($data['fileId'] ?? '');
+    if (strlen($fileId) < 8) {
+        echo json_encode(['success' => false, 'message' => '无效的 fileId']);
+        exit;
+    }
     $fileId = $data['fileId'] ?? '';
     $fileName = $data['fileName'] ?? '';
     $totalChunks = $data['totalChunks'] ?? 0;
@@ -800,10 +843,11 @@ function renameFile($data) {
  * 删除文件
  */
 function deleteFile($data) {
-    $fileId = $data['fileId'] ?? '';
-    if (empty($fileId)) {
-        echo json_encode(['success' => false, 'message' => '文件ID为空']);
-        return;
+    // 在 deleteFile() 开头立即添加文件ID验证
+    $fileId = sanitizeFileId($data['fileId'] ?? '');
+    if (strlen($fileId) < 8) {
+        echo json_encode(['success' => false, 'message' => '无效的 fileId']);
+        exit;
     }
 
     // 根据ID获取文件路径
